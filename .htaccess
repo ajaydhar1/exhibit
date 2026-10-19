@@ -1,0 +1,7 @@
+<FilesMatch "(?i)(^\.|^README\.md$|^Dockerfile$|\.(sql|ini|pem|key|crt|p12|pfx|dump|bak|orig)(\.gz)?$)">
+    Require all denied
+</FilesMatch>
+
+Options -Indexes
+
+RedirectMatch 403 "(?i)(?:^|/)\."

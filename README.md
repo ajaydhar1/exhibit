@@ -65,3 +65,18 @@ The following screens extend the established Sign In / Register style without im
 - `verify-email.php` — verification instruction and resend preview; add `?preview=verified` to see the success-state mockup
 
 All forms prevent submission. No email is delivered, and no account credentials are transmitted or stored. Never enter a real password into these prototypes.
+
+## PostgreSQL foundation (prepared, not initialized)
+
+The approved prototype screens remain unchanged and disconnected from the database.
+The repository now includes the reviewed four-table SQL migration, an opt-in
+environment-driven PDO helper, PostgreSQL support in the Docker image, and offline
+tests. A manual CLI migration runner provides a nonconnecting plan, read-only
+preflight, and explicit atomic apply; migrations never run on application startup.
+Opt-in PostgreSQL behavior tests are restricted to an empty local test database.
+Authentication, saving, and publishing are still not implemented.
+
+See [Database setup and safe Render initialization](docs/database.md) for schema
+mapping, environment variables, TLS, private-file protections, test commands, and
+the review/backup steps required before applying the migration. Nothing runs on
+startup, and no database connection or migration is needed to view the prototype.

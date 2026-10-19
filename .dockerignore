@@ -2,3 +2,12 @@
 .gitignore
 *.zip
 .DS_Store
+.env
+.env.*
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+*.sql.gz
+*.dump
