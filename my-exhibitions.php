@@ -1,30 +1,18 @@
 <?php
+declare(strict_types=1);
+
 require_once __DIR__ . '/backend/auth.php';
-Exhibit\Auth\requireCreator();
-// These are sample records, not authenticated user data.
-$sampleExhibitions = [
-  [
-    'title' => 'The Birth of the Internet',
-    'category' => 'TECHNOLOGY & HISTORY',
-    'description' => 'An unlikely experiment that connected the world, told across five chapters.',
-    'chapters' => 5,
-    'status' => 'Published',
-    'visual' => 'network',
-    'link' => 'exhibition.php',
-  ],
-  [
-    'title' => 'Cities After Dark',
-    'category' => 'PLACES & CULTURE',
-    'description' => 'A sample working exhibition about the places that come alive after sunset.',
-    'chapters' => 3,
-    'status' => 'Draft',
-    'visual' => 'night',
-    'link' => null,
-  ],
-];
-function exhibitEscape(string $value): string
-{
-  return htmlspecialchars($value, ENT_QUOTES, 'UTF-8');
+require_once __DIR__ . '/backend/exhibitions.php';
+
+use Exhibit\Auth;
+use Exhibit\Exhibitions;
+
+$creator = Auth\requireCreator();
+Exhibitions\requireMethod(['GET']);
+try {
+  $exhibitions = Exhibitions\service()->listOwned((int) $creator['id']);
+} catch (Throwable $error) {
+  Exhibitions\unavailable($error);
 }
 ?>
 <!doctype html>
@@ -32,24 +20,11 @@ function exhibitEscape(string $value): string
 
 <head>
 
-  <!-- Google tag (gtag.js) -->
-  <script async src="https://www.googletagmanager.com/gtag/js?id=G-E5SFFE66TD"></script>
-  <script>
-    window.dataLayer = window.dataLayer || [];
-
-    function gtag() {
-      dataLayer.push(arguments);
-    }
-    gtag('js', new Date());
-
-    gtag('config', 'G-E5SFFE66TD');
-  </script>
-
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="robots" content="noindex, nofollow">
-  <meta name="description" content="A concept preview of the Exhibit creator dashboard.">
-  <title>My Exhibitions — Exhibit (Design Preview)</title>
+  <meta name="description" content="Your private exhibition workspace.">
+  <title>My Exhibitions — Exhibit</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Serif+Display:ital@0;1&display=swap" rel="stylesheet">
@@ -62,49 +37,50 @@ function exhibitEscape(string $value): string
   <header class="site-header">
     <div class="shell header-inner">
       <a class="wordmark" href="index.php" aria-label="Exhibit home"><span class="mark" aria-hidden="true">E<span>✳</span></span> exhibit<span class="wordmark-period">.</span></a>
-      <nav aria-label="Main navigation"><a href="explore.php">Explore</a><a href="new-exhibition.php">New exhibition</a><a href="studio.php">Studio</a><a href="sign-in.php">Account</a></nav>
-      <span class="edition">CREATOR WORKSPACE · PREVIEW</span>
+      <nav aria-label="Main navigation"><a href="explore.php">Explore</a><a href="new-exhibition.php">New exhibition</a><a href="my-exhibitions.php">Studio</a><a href="sign-in.php">Account</a></nav>
+      <span class="edition">CREATOR WORKSPACE</span>
     </div>
   </header>
   <main class="workspace shell">
-    <div class="prototype-banner" role="note"><span class="banner-indicator"></span><strong>Design preview</strong><span>Sample exhibitions only. Your account is active; exhibition saving and publishing are not yet enabled.</span></div>
+    <div class="prototype-banner" role="note"><span class="banner-indicator"></span><strong>Your private workspace</strong><span>Drafts are saved to your account. Studio editing and publishing are not available yet.</span></div>
     <section class="workspace-intro" aria-labelledby="workspace-title">
       <div>
         <p class="eyebrow"><span class="eyebrow-line"></span> YOUR CREATIVE SPACE / 001</p>
         <h1 id="workspace-title">My <em>Exhibitions.</em></h1>
         <p>Every story begins somewhere. Gather your ideas, shape them into chapters, and make something worth exploring.</p>
       </div>
-      <a class="new-exhibition-preview" href="new-exhibition.php"><span aria-hidden="true">＋</span> New exhibition <small>Preview →</small></a>
+      <a class="new-exhibition-preview" href="new-exhibition.php"><span aria-hidden="true">＋</span> New exhibition <small>Begin →</small></a>
     </section>
     <section class="workspace-collection" aria-labelledby="collection-title">
       <div class="workspace-section-heading">
         <div>
           <p class="eyebrow">THE WORKSPACE</p>
           <h2 id="collection-title">Your exhibitions<span class="heading-dot">.</span></h2>
-        </div><span class="collection-count">02 / SAMPLE PROJECTS</span>
+        </div><span class="collection-count"><?= str_pad((string) count($exhibitions), 2, '0', STR_PAD_LEFT) ?> / PROJECTS</span>
       </div>
+      <?php if ($exhibitions === []): ?>
+        <div class="studio-note" id="empty-exhibitions"><span class="studio-note-icon" aria-hidden="true">✳</span>
+          <div><h2>Your first idea belongs here.</h2><p>You haven't created an exhibition yet. <a href="new-exhibition.php">Create your first exhibition →</a></p></div>
+        </div>
+      <?php endif; ?>
       <div class="workspace-grid">
-        <?php foreach ($sampleExhibitions as $item): ?>
+        <?php foreach ($exhibitions as $index => $item): ?>
           <article class="workspace-card">
-            <div class="workspace-card-art <?= exhibitEscape($item['visual']) ?>" aria-hidden="true">
-              <?php if ($item['visual'] === 'network'): ?>
-                <div class="network-art"><span>ARPANET</span>
-                  <div class="nodes"><i></i><i></i><i></i><i></i></div><b>www.</b>
+            <div class="workspace-card-art network" aria-hidden="true"<?php if ($item['cover'] !== null): ?> style="<?= Auth\escape('background-image: url(' . json_encode($item['cover']['url'], JSON_THROW_ON_ERROR) . '), linear-gradient(135deg, #102e2d, #286455); background-size: cover; background-position: center') ?>"<?php endif; ?>>
+              <?php if ($item['cover'] === null): ?>
+                <div class="network-art"><span>AN ORIGINAL EXHIBITION</span>
+                  <div class="nodes"><i></i><i></i><i></i><i></i></div><b>✳</b>
                 </div>
-              <?php else: ?>
-                <div class="night-art"><span class="night-moon"></span><i></i><i></i><i></i><i></i><span class="night-caption">AFTER / DARK</span></div>
               <?php endif; ?>
-              <span class="card-art-index">EXHIBIT / <?= $item['visual'] === 'network' ? '001' : '002' ?></span>
+              <span class="card-art-index">EXHIBIT / <?= str_pad((string) ($index + 1), 3, '0', STR_PAD_LEFT) ?></span>
             </div>
             <div class="workspace-card-content">
-              <div class="card-topline"><span class="card-category"><?= exhibitEscape($item['category']) ?></span><span class="status <?= $item['status'] === 'Published' ? 'published' : 'draft' ?>"><i></i><?= exhibitEscape($item['status']) ?></span></div>
-              <h3><?= exhibitEscape($item['title']) ?></h3>
-              <p><?= exhibitEscape($item['description']) ?></p>
-              <div class="workspace-card-bottom"><span><?= (int) $item['chapters'] ?> chapters</span>
-                <?php if ($item['link']): ?><a href="<?= exhibitEscape($item['link']) ?>">View exhibition <span aria-hidden="true">↗</span></a>
-                <?php else: ?><span class="not-live">Sample draft · Preview only</span><?php endif; ?>
+              <div class="card-topline"><span class="card-category"><?= Auth\escape($item['category'] ?? 'NO SUBJECT') ?></span><span class="status <?= $item['status'] === 'published' ? 'published' : 'draft' ?>"><i></i><?= Auth\escape(ucfirst($item['status'])) ?></span></div>
+              <h3><?= Auth\escape($item['title']) ?></h3>
+              <p><?= Auth\escape($item['summary'] ?? 'No introduction yet.') ?></p>
+              <div class="workspace-card-bottom"><span><?= (int) $item['chapter_count'] ?> <?= (int) $item['chapter_count'] === 1 ? 'chapter' : 'chapters' ?></span>
+                <a href="studio.php?id=<?= (int) $item['id'] ?>">Open Studio <span aria-hidden="true">↗</span></a>
               </div>
-              <?php if ($item['visual'] === 'network'): ?><p class="studio-preview-link"><a href="studio.php">Open Studio preview →</a></p><?php endif; ?>
             </div>
           </article>
         <?php endforeach; ?>
@@ -113,7 +89,7 @@ function exhibitEscape(string $value): string
     <aside class="studio-note"><span class="studio-note-icon" aria-hidden="true">✳</span>
       <div>
         <h2>Thoughtfully made, chapter by chapter.</h2>
-        <p>Next, we'll design the Studio where creators can actually build and edit these exhibitions. For now, this is a preview of the workspace experience.</p>
+        <p>Your exhibition ideas are saved. Open a draft in Studio to see its details; chapter editing and publishing will follow in a later milestone.</p>
       </div>
     </aside>
   </main>

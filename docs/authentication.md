@@ -6,8 +6,9 @@ Registration, sign-in, verification, recovery, and logout now use the existing P
 screens and styling. All registered accounts are creators. As approved, creators
 must verify their email before opening `my-exhibitions.php`, `new-exhibition.php`,
 or `studio.php`. Public exhibition pages require neither login nor a database.
-The creator screens still show sample data; edits, saving, and publishing remain
-unimplemented. No role system or content-model changes are introduced.
+Verified creators can now create persistent exhibition drafts, list only their own
+records, and reopen persisted information in read-only Studio. Studio editing and
+publishing remain unimplemented. No role system or content-model changes are introduced.
 
 ## Required web environment
 
@@ -176,8 +177,12 @@ startup or blindly rerun a migration after an ambiguous commit.
   error; it does not promise registration enumeration resistance.
 - `requireCreator()`, `Service::currentUser()`, `Service::ownsExhibition()`, and
   `requireExhibitionOwner()` are reusable. Foreign/nonexistent exhibitions return
-  the same 404. Future persistence endpoints must call the ownership guard; sample
-  previews deliberately do not accept or persist exhibition IDs.
+  the same 404. Studio calls the ownership guard and loads metadata with both ID
+  and owner predicates. The dashboard filters by the session-derived creator ID;
+  draft creation never trusts owner/status/slug/publication fields from the client.
+  Creation is CSRF-protected POST; Studio and dashboard accept only GET. Bare Studio
+  redirects verified creators to the dashboard. Creator workflow analytics tags
+  are omitted to avoid sending private draft identifiers to analytics services.
 - Sessions are file-backed using PHP's configured private storage. Multiple web
   instances require a shared secure session store or sticky sessions before
   scaling; no distributed session system is added.
@@ -189,6 +194,7 @@ when the shared Ampps PHP configuration produces duplicate-extension warnings.
 
 ```powershell
 php tests\run.php
+php tests\exhibitions.php
 php tests\auth.php
 php tests\auth-http.php
 ```
@@ -199,6 +205,8 @@ rotation, cookie flags, and idle/absolute expiry. The HTTP suite starts and stop
 its own loopback PHP server; checks actual forms, headers, CSRF rejection, logout
 method restrictions, anonymous creator guards, and all public content pages.
 It explicitly removes `DATABASE_URL` from the child environment.
+The exhibition suite uses PDO doubles, without connecting, to verify validation,
+owner-scoped parameter binding, slug collisions, and explicit failure behavior.
 
 For full service and browser-request flows, first supply `TEST_DATABASE_URL` for
 an **empty, disposable loopback database named `exhibit_test_SUFFIX`**, with
@@ -216,6 +224,18 @@ test tables and timestamp function afterward. It never falls back to
 `DATABASE_URL` or to a remote database. It inspects decrypted test-only email in
 memory and never connects to SMTP. The original `tests/postgres.php` remains a
 separate rollback-only test of the initial four-table foundation.
+
+The same disposable suite now also checks actual exhibition draft round trips,
+trusted owner/draft state, zero placeholder children, listing order/chapter counts,
+CSRF and validation errors, owner-only dashboard/Studio requests, read-only method
+restrictions, refresh/reopen, and reopening after a new sign-in. These scenarios
+passed in the separately approved isolated PostgreSQL 18.6 run, alongside eight
+authentication service groups and 23 database-backed authentication HTTP scenarios.
+The disposable schema and cluster were removed after validation. A separately
+approved single-private-draft browser test confirmed persistence and read-only
+Studio behavior at desktop and mobile widths.
+Future runs still require explicit disposable database/migration approval:
+the test setup installs both existing migrations, never production migrations.
 
 `tests/http.ps1 -BaseUrl ...` remains the separate loopback **Apache** private-file
 and public-resource check; use an environment-configured web runtime. The PHP

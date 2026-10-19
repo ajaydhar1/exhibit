@@ -9,6 +9,7 @@ require_once __DIR__ . '/support.php';
 require_once __DIR__ . '/../backend/auth.php';
 require_once __DIR__ . '/../backend/migrations.php';
 require_once __DIR__ . '/auth-http.php';
+require_once __DIR__ . '/exhibition-workflow.php';
 
 use Exhibit\Auth\{Service, ValidationError, RateLimitError};
 
@@ -139,6 +140,7 @@ try {
             fwrite(STDERR, "FAIL: $name [" . get_class($error) . "]. No sensitive exception details printed.\n");
         }
     }
+    runExhibitionPostgres($db);
     runAuthHttp($db);
     echo count($tests) . " PostgreSQL service tests; $failed failures.\n";
 } catch (Throwable $error) {

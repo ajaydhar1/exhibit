@@ -6,10 +6,45 @@ This document records the original PostgreSQL foundation milestone and its
 initialization procedure. Authentication now uses this foundation; see
 [Authentication setup](authentication.md) for the new approval-gated migration,
 account/session behavior, encrypted email queue, and current test commands.
-Public content remains database-independent. Studio persistence and publishing
-are still not implemented. Sections below describing disconnected screens or
+Public content remains database-independent. Draft creation now persists exhibition
+metadata, the dashboard lists creator-owned records, and read-only Studio loads a
+saved exhibition. Studio editing and publishing are still not implemented.
+Sections below describing disconnected screens or
 exactly four tables refer to the original foundation, not the authentication
 extension.
+
+### Persistent draft implementation
+
+No schema adjustment or migration is required for this workflow.
+`backend/exhibitions.php` uses the existing PDO helper and native prepared
+statements. The form maps title to `title`, short introduction to `summary`,
+subject to `category`, and cover URL to `cover` as `{"url":"https://..."}`.
+Blank optional values become SQL NULL. `subtitle` and `description` are not
+collected. The trusted session supplies `owner_id`; the service generates a random
+URL-safe slug and always inserts `status = 'draft'`, `published_at = NULL`.
+Slug conflicts alone receive a bounded retry. No child rows are created.
+
+Dashboard reads filter by owner, sort by `updated_at DESC, id DESC`, and derive
+chapter counts in the query. Studio requires the existing ownership guard and
+fetches metadata with both exhibition and owner IDs. Text is escaped on output;
+HTTP(S) cover URLs are length/scheme/credential validated on write and read and
+are loaded only by the browser, never fetched server-side. A failed image request
+leaves the existing decorative background; it does not affect the saved record.
+Creation uses CSRF-protected POST/303 redirect; Studio and dashboard are read-only.
+Database errors produce a sanitized log and 503, not an empty/success fallback.
+
+`tests/exhibitions.php` is connection-free. Actual persistence/ownership/HTTP
+workflow coverage is included in `tests/auth-postgres.php --run` through
+`tests/exhibition-workflow.php`. That established suite installs/removes schemas
+only in an empty, disposable loopback `exhibit_test_SUFFIX` database. The separately
+approved PostgreSQL 18.6 validation passed all 16 foundation checks, eight auth
+service groups, exhibition persistence/ownership checks, the draft HTTP workflow,
+and 23 database-backed authentication HTTP scenarios. The exact database, role,
+loopback listener, server PID, empty schema, and isolated data directory were
+verified before migrations. Test schemas and the temporary cluster were removed
+afterward; no Render configuration was used. This documentation does not authorize
+future runs: do not use a development or production database, and do not run
+migrations while disposable-test migration approval is withheld.
 
 The operator has now also applied the explicitly approved authentication migration
 and supplied a successful independent read-only verification report. See the

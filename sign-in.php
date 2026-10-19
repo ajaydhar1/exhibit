@@ -41,7 +41,7 @@ require __DIR__ . '/backend/auth-page.php';
             <div class="auth-topline"><span>YOUR WORKSPACE</span><span>01 / SIGN IN</span></div>
             <h2 id="auth-heading">Welcome back.</h2>
             <p class="auth-subtitle">Sign in to return to your exhibitions and drafts.</p>
-            <div class="prototype-note" role="note"><span>✳</span><span><strong>Your creator workspace.</strong> Sign in with your verified account. Exhibition content remains sample-only.</span></div>
+            <div class="prototype-note" role="note"><span>✳</span><span><strong>Your creator workspace.</strong> Sign in with your verified account to create and reopen saved exhibition drafts.</span></div>
             <form class="auth-form" method="post" action="sign-in.php" data-auth-form><?= $csrfInput ?><label for="email">Email address</label><input id="email" name="email" type="email" autocomplete="email" maxlength="254" value="<?= Exhibit\Auth\escape(Exhibit\Auth\post('email')) ?>" placeholder="you@example.com" required><label for="password">Password</label>
                 <div class="password-wrap"><input id="password" name="password" type="password" autocomplete="current-password" placeholder="Your password" required><button type="button" class="password-toggle" aria-label="Show password" aria-pressed="false">Show</button></div><button class="auth-submit" type="submit">Sign in <span aria-hidden="true">→</span></button>
                 <p class="auth-feedback" role="status" aria-live="polite"><?= Exhibit\Auth\escape($feedback) ?></p>

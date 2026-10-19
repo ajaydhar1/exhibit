@@ -41,7 +41,7 @@ require __DIR__ . '/backend/auth-page.php';
             <div class="auth-topline"><span>GETTING STARTED</span><span>02 / REGISTER</span></div>
             <h2 id="auth-heading">Create your space.</h2>
             <p class="auth-subtitle">A home for the exhibitions you haven't made yet.</p>
-            <div class="prototype-note" role="note"><span>✳</span><span><strong>Your creator account.</strong> Verify your email to access your workspace. Exhibition saving is not available yet.</span></div>
+            <div class="prototype-note" role="note"><span>✳</span><span><strong>Your creator account.</strong> Verify your email to create private exhibition drafts and reopen them in Studio.</span></div>
             <form class="auth-form" method="post" action="register.php" data-auth-form>
                 <?= $csrfInput ?>
                 <label for="name">Display name</label>
@@ -74,7 +74,7 @@ require __DIR__ . '/backend/auth-page.php';
                 <p class="field-hint">Use at least 12 characters, up to 72 bytes. Your email must be verified before entering the workspace.</p><button class="auth-submit" type="submit">Create account <span aria-hidden="true">→</span></button>
                 <p class="auth-feedback" role="status" aria-live="polite"><?= Exhibit\Auth\escape($feedback) ?></p>
             </form>
-            <div class="auth-switch">Already have an account? <a href="sign-in.php">Sign in →</a></div><a class="auth-back" href="verify-email.php">Email verification →</a><a class="auth-back auth-secondary-back" href="studio.php">Explore the Studio preview ↗</a>
+            <div class="auth-switch">Already have an account? <a href="sign-in.php">Sign in →</a></div><a class="auth-back" href="verify-email.php">Email verification →</a><a class="auth-back auth-secondary-back" href="my-exhibitions.php">Open your workspace ↗</a>
         </section>
     </main>
     <footer class="footer">

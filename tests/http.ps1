@@ -39,9 +39,9 @@ foreach ($path in $publicFiles) {
 foreach ($path in @(
     '.env', '.env.example', '.env.production', '.git/config', '.git/HEAD', '%2egit/config',
     'Dockerfile', 'README.md', '.htaccess', 'assets/',
-    'backend/database.php', 'backend/migrations.php', 'backend/auth.php', 'backend/auth-page.php', 'backend/auth-migrations.php', 'backend/schema.php', 'backend/smtp.php', 'backend/resend.php', 'backend/mail.php', 'backend/mail-worker.php', 'backend/',
+    'backend/database.php', 'backend/exhibitions.php', 'backend/migrations.php', 'backend/auth.php', 'backend/auth-page.php', 'backend/auth-migrations.php', 'backend/schema.php', 'backend/smtp.php', 'backend/resend.php', 'backend/mail.php', 'backend/mail-worker.php', 'backend/',
     'database/migrate.php', 'database/auth-migrate.php', 'database/auth-preflight.ps1', 'database/migrations/001_initial.sql', 'database/migrations/002_authentication.sql',
-    'tests/run.php', 'tests/postgres.php', 'tests/auth-migrations.php', 'tests/mail.php', 'tests/validate-live.php', 'tests/http.ps1',
+    'tests/run.php', 'tests/exhibitions.php', 'tests/exhibition-workflow.php', 'tests/postgres.php', 'tests/auth-migrations.php', 'tests/mail.php', 'tests/validate-live.php', 'tests/http.ps1',
     'docs/database.md', 'docs/authentication-activation.md', 'docker/apache-private.conf', 'docker/php-production.ini'
 )) {
     $status = Get-HttpStatus $path

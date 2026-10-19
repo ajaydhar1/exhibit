@@ -6,16 +6,17 @@ if (PHP_SAPI !== 'cli') {
     exit;
 }
 require_once __DIR__ . '/support.php';
+require_once __DIR__ . '/exhibition-workflow.php';
 
 final class AuthHttpClient
 {
     public string $cookie = '';
     public function __construct(private string $base) {}
 
-    public function request(string $page, ?array $fields = null): array
+    public function request(string $page, ?array $fields = null, ?string $method = null): array
     {
         $context = stream_context_create(['http' => [
-            'method' => $fields === null ? 'GET' : 'POST',
+            'method' => $method ?? ($fields === null ? 'GET' : 'POST'),
             'header' => "Content-Type: application/x-www-form-urlencoded\r\nCookie: " . $this->cookie . "\r\n",
             'content' => $fields === null ? '' : http_build_query($fields),
             'ignore_errors' => true, 'follow_location' => 0, 'timeout' => 15,
@@ -98,6 +99,8 @@ function runAuthHttp(?PDO $db = null): int
         foreach (['my-exhibitions.php', 'new-exhibition.php', 'studio.php'] as $page) {
             $response = $client->request($page);
             check($response['status'] === 303 && str_contains($response['headers'], '/sign-in.php'), 'Anonymous creator access allowed.');
+            $response = $client->request($page, ['title' => 'Denied anonymous draft']);
+            check($response['status'] === 303 && str_contains($response['headers'], '/sign-in.php'), 'Anonymous creator POST allowed.');
             $count++;
         }
         foreach (['index.php', 'explore.php', 'exhibition.php', 'view.php', 'chapter-2.php', 'chapter-3.php', 'chapter-4.php', 'chapter-5.php'] as $page) {
@@ -123,6 +126,8 @@ function runAuthHttp(?PDO $db = null): int
             foreach (['my-exhibitions.php', 'new-exhibition.php', 'studio.php'] as $page) {
                 $response = $client->request($page);
                 check($response['status'] === 303 && str_contains($response['headers'], '/verify-email.php'), 'Unverified creator accessed workspace.');
+                $response = $client->request($page, ['csrf' => $client->csrf('verify-email.php'), 'title' => 'Denied unverified draft']);
+                check($response['status'] === 303 && str_contains($response['headers'], '/verify-email.php'), 'Unverified creator submitted workspace form.');
             }
             $queued = $db->query("SELECT payload FROM public.auth_mail_queue q JOIN public.users u ON u.id = q.user_id
                 WHERE u.email = 'http-creator@example.test' AND purpose = 'verify'")->fetchColumn();
@@ -132,9 +137,10 @@ function runAuthHttp(?PDO $db = null): int
             $csrf = $client->csrf('verify-email.php');
             check($client->request('verify-email.php', ['csrf' => $csrf, 'action' => 'capture-token', 'token' => $token])['status'] === 303, 'Verification link capture failed.');
             check($client->request('verify-email.php', ['csrf' => $csrf, 'action' => 'verify'])['status'] === 303, 'Verification failed.');
-            foreach (['my-exhibitions.php', 'new-exhibition.php', 'studio.php'] as $page) {
+            foreach (['my-exhibitions.php', 'new-exhibition.php'] as $page) {
                 check($client->request($page)['status'] === 200, 'Verified creator denied workspace.');
             }
+            $draftId = runExhibitionHttp($client, $db, $base);
             $count++;
             $duplicate = new AuthHttpClient($base);
             $csrf = $duplicate->csrf('register.php');
@@ -154,6 +160,9 @@ function runAuthHttp(?PDO $db = null): int
             $oldCookie = $client->cookie;
             check($client->request('sign-in.php', ['csrf' => $csrf, 'email' => $email, 'password' => $password])['status'] === 303, 'Valid login failed.');
             check($client->cookie !== $oldCookie, 'Login session ID not rotated.');
+            $reopened = $client->request('studio.php?id=' . $draftId);
+            check($reopened['status'] === 200 && str_contains($reopened['body'], Exhibit\Auth\escape('Private <script>alert("draft")</script> idea')),
+                'New authenticated session could not reopen saved exhibition.');
             $count++;
             $csrf = $duplicate->csrf('forgot-password.php');
             check($duplicate->request('forgot-password.php', ['csrf' => $csrf, 'email' => $email])['status'] === 303, 'Recovery request failed.');
