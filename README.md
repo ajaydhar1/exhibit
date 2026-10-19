@@ -35,3 +35,8 @@ Open `my-exhibitions.php` locally to view the **My Exhibitions** screen. It cont
 ## Exhibition Studio interactive preview
 
 Open `studio.php` locally, or use **Open Studio preview** from `my-exhibitions.php`. Chapter switching, title/era/narrative edits, adding/removing text or artifact blocks, and the live preview work in browser memory only. Refreshing the page discards all changes. Save/publish functionality is intentionally disabled; no database or authentication exists. Keep this preview out of public navigation until the creator workflow is implemented.
+
+
+## Create Exhibition screen (prototype)
+
+Open `new-exhibition.php` from the My Exhibitions dashboard. This is a design-only screen with editable title, summary, subject and optional remote cover URL, with a live preview. The Continue button explains that creating a persistent exhibition is not yet implemented. Nothing is saved to a database or published.

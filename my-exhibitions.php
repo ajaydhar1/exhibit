@@ -55,7 +55,7 @@ function exhibitEscape(string $value): string {
         <h1 id="workspace-title">My <em>Exhibitions.</em></h1>
         <p>Every story begins somewhere. Gather your ideas, shape them into chapters, and make something worth exploring.</p>
       </div>
-      <div class="new-exhibition-preview"><span aria-hidden="true">＋</span> New exhibition <small>Coming later</small></div>
+      <a class="new-exhibition-preview" href="new-exhibition.php"><span aria-hidden="true">＋</span> New exhibition <small>Preview →</small></a>
     </section>
     <section class="workspace-collection" aria-labelledby="collection-title">
       <div class="workspace-section-heading"><div><p class="eyebrow">THE WORKSPACE</p><h2 id="collection-title">Your exhibitions<span class="heading-dot">.</span></h2></div><span class="collection-count">02 / SAMPLE PROJECTS</span></div>
