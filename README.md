@@ -54,3 +54,14 @@ These are **visual-only prototypes**. They deliberately have no authentication e
 Open `explore.php` to visit the new discovery screen. It links to the one fully authored exhibition, **The Birth of the Internet**. Three additional cards are explicitly labeled *concept previews* and do not imply that those exhibitions are published.
 
 Top navigation now connects the homepage, Explore, creator dashboard, Studio, new-exhibition preview, and sign-in screens, with contextual links within the viewer. The creator interfaces remain sample-only demonstrations: no account creation, saving, or publishing is active.
+
+
+## Additional account-flow design previews
+
+The following screens extend the established Sign In / Register style without implementing account operations:
+
+- `forgot-password.php` — reset-link request preview
+- `reset-password.php` — new-password form preview (no tokens processed)
+- `verify-email.php` — verification instruction and resend preview; add `?preview=verified` to see the success-state mockup
+
+All forms prevent submission. No email is delivered, and no account credentials are transmitted or stored. Never enter a real password into these prototypes.
