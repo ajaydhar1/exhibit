@@ -43,7 +43,7 @@ function exhibitEscape(string $value): string {
   <header class="site-header">
     <div class="shell header-inner">
       <a class="wordmark" href="index.php" aria-label="Exhibit home"><span class="mark" aria-hidden="true">E<span>✳</span></span> exhibit<span class="wordmark-period">.</span></a>
-      <nav aria-label="Main navigation"><a href="index.php">Discover</a><a href="exhibition.php">Featured exhibition</a></nav>
+      <nav aria-label="Main navigation"><a href="explore.php">Explore</a><a href="new-exhibition.php">New exhibition</a><a href="studio.php">Studio</a><a href="sign-in.php">Sign in</a></nav>
       <span class="edition">CREATOR WORKSPACE · PREVIEW</span>
     </div>
   </header>

@@ -43,7 +43,7 @@ function e(string $value): string
   <header class="site-header">
     <div class="shell header-inner">
       <a class="wordmark" href="index.php" aria-label="Exhibit home"><span class="mark" aria-hidden="true">E<span>✳</span></span> exhibit<span class="wordmark-period">.</span></a>
-      <nav aria-label="Main navigation"><a href="#featured">Featured exhibition</a><a href="#about">About Exhibit</a></nav>
+      <nav aria-label="Main navigation"><a href="explore.php">Explore</a><a href="#about">About Exhibit</a><a href="my-exhibitions.php">My Exhibitions</a><a href="sign-in.php">Sign in</a></nav>
       <span class="edition">AN OPEN SPACE FOR CURIOSITY</span>
     </div>
   </header>

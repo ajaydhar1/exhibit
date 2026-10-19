@@ -15,7 +15,7 @@
 <body>
 <header class="site-header"><div class="shell header-inner">
 <a class="wordmark" href="index.php" aria-label="Exhibit home"><span class="mark" aria-hidden="true">E<span>✳</span></span> exhibit<span class="wordmark-period">.</span></a>
-<nav aria-label="Creator navigation"><a href="my-exhibitions.php">← My Exhibitions</a><a href="studio.php">Studio preview</a></nav><span class="edition">CREATOR WORKSPACE · PREVIEW</span>
+<nav aria-label="Creator navigation"><a href="my-exhibitions.php">← My Exhibitions</a><a href="studio.php">Studio preview</a><a href="explore.php">Explore</a></nav><span class="edition">CREATOR WORKSPACE · PREVIEW</span>
 </div></header>
 <main class="create-shell shell">
   <div class="create-note" role="note"><span class="note-spark">✳</span><strong>Design preview</strong><span>Explore the setup experience. Nothing is saved, uploaded, or published.</span></div>

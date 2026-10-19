@@ -17,7 +17,7 @@
 <body class="studio-page">
   <header class="site-header"><div class="shell header-inner">
     <a class="wordmark" href="index.php" aria-label="Exhibit home"><span class="mark" aria-hidden="true">E<span>✳</span></span> exhibit<span class="wordmark-period">.</span></a>
-    <nav aria-label="Workspace"><a href="my-exhibitions.php">← My Exhibitions</a><a href="exhibition.php">Public exhibition ↗</a></nav>
+    <nav aria-label="Workspace"><a href="my-exhibitions.php">← My Exhibitions</a><a href="exhibition.php">Public exhibition ↗</a><a href="explore.php">Explore</a></nav>
     <span class="edition">THE EXHIBITION STUDIO</span>
   </div></header>
   <main class="studio-shell">

@@ -50,13 +50,13 @@ function e(string $value): string
   <header class="site-header">
     <div class="shell header-inner">
       <a class="wordmark" href="index.php" aria-label="Exhibit home"><span class="mark" aria-hidden="true">E<span>✳</span></span> exhibit<span class="wordmark-period">.</span></a>
-      <nav aria-label="Main navigation"><a href="index.php#featured">Featured exhibition</a><a href="index.php#about">About Exhibit</a></nav>
+      <nav aria-label="Main navigation"><a href="explore.php">Explore</a><a href="index.php#about">About Exhibit</a><a href="my-exhibitions.php">My Exhibitions</a></nav>
       <span class="edition">AN OPEN SPACE FOR CURIOSITY</span>
     </div>
   </header>
   <main>
     <section class="overview-intro shell" aria-labelledby="exhibition-title">
-      <a class="back-link" href="index.php#featured"><span aria-hidden="true">←</span> All exhibitions</a>
+      <a class="back-link" href="explore.php"><span aria-hidden="true">←</span> All exhibitions</a>
       <div class="overview-title-area">
         <div>
           <p class="eyebrow"><span class="eyebrow-line"></span> EXHIBITION 001 / <?= e($exhibition['category']) ?></p>

@@ -47,3 +47,10 @@ Open `new-exhibition.php` from the My Exhibitions dashboard. This is a design-on
 - `register.php` — Register design preview
 
 These are **visual-only prototypes**. They deliberately have no authentication endpoint, no saved credentials, and no functional account creation. Forms prevent submission. Do not ask users to enter real passwords into prototypes. Do not deploy these previews publicly as working authentication; implement secure server-side authentication, rate limiting, CSRF defense, and session handling first.
+
+
+## Explore + navigation prototype
+
+Open `explore.php` to visit the new discovery screen. It links to the one fully authored exhibition, **The Birth of the Internet**. Three additional cards are explicitly labeled *concept previews* and do not imply that those exhibitions are published.
+
+Top navigation now connects the homepage, Explore, creator dashboard, Studio, new-exhibition preview, and sign-in screens, with contextual links within the viewer. The creator interfaces remain sample-only demonstrations: no account creation, saving, or publishing is active.
