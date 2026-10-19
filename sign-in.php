@@ -1,5 +1,68 @@
-<?php // Exhibit visual prototype only: no authentication or credential submission. ?>
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>Sign in — Exhibit (Preview)</title><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Serif+Display:ital@0;1&display=swap" rel="stylesheet"><link rel="icon" type="image/svg+xml" href="assets/favicon.svg"><link rel="stylesheet" href="assets/style.css"><link rel="stylesheet" href="assets/auth.css"><script defer src="assets/auth.js"></script></head>
-<body><header class="site-header"><div class="shell header-inner"><a class="wordmark" href="index.php"><span class="mark" aria-hidden="true">E<span>✳</span></span> exhibit<span class="wordmark-period">.</span></a><nav aria-label="Account navigation"><a href="explore.php">Explore Exhibit</a><a href="register.php">Create account ↗</a></nav><span class="edition">YOUR CREATIVE SPACE</span></div></header>
-<main class="auth-shell shell"><div class="auth-side"><p class="eyebrow">EXHIBIT / WELCOME BACK</p><h1>Come back to<br><em>your curiosity.</em></h1><p>Stories worth sharing take time. Pick up where you left off, and keep building something wonderful.</p><div class="auth-art" aria-hidden="true"><div class="orbit orbit-one"></div><div class="orbit orbit-two"></div><div class="orbit orbit-three"></div><span class="art-label">EXHIBIT / CREATOR STUDIO</span><span class="art-bottom">A HOME FOR STORIES THAT STAY WITH US ✳</span></div><span class="small-thought">Every exhibition begins somewhere. Yours can continue here.</span></div>
-<section class="auth-panel" aria-labelledby="auth-heading"><div class="auth-topline"><span>YOUR WORKSPACE</span><span>01 / SIGN IN</span></div><h2 id="auth-heading">Welcome back.</h2><p class="auth-subtitle">Sign in to return to your exhibitions and drafts.</p><div class="prototype-note" role="note"><span>✳</span><span><strong>Design preview.</strong> Authentication isn't connected yet. No credentials are sent or stored.</span></div><form class="auth-form" data-auth-preview novalidate><label for="email">Email address</label><input id="email" name="email" type="email" autocomplete="email" placeholder="you@example.com" required><label for="password">Password</label><div class="password-wrap"><input id="password" name="password" type="password" autocomplete="current-password" placeholder="Your password" required><button type="button" class="password-toggle" aria-label="Show password" aria-pressed="false">Show</button></div><button class="auth-submit" type="submit">Sign in <span aria-hidden="true">→</span></button><p class="auth-feedback" role="status" aria-live="polite">This is a design preview; sign-in is not active yet.</p></form><a class="auth-back" href="forgot-password.php">Forgot your password? →</a><div class="auth-switch">New to Exhibit? <a href="register.php">Create an account →</a></div><a class="auth-back" href="my-exhibitions.php">View the sample creator dashboard ↗</a></section></main><footer class="footer"><div class="shell footer-inner"><span class="footer-brand">exhibit<span>.</span></span><span>Made for the endlessly curious.</span><span>© <?= date('Y') ?> Exhibit</span></div></footer></body></html>
+<?php // Exhibit visual prototype only: no authentication or credential submission. 
+?>
+<!doctype html>
+<html lang="en">
+
+<head>
+
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-E5SFFE66TD"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+
+        function gtag() {
+            dataLayer.push(arguments);
+        }
+        gtag('js', new Date());
+
+        gtag('config', 'G-E5SFFE66TD');
+    </script>
+
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="robots" content="noindex,nofollow">
+    <title>Sign in — Exhibit (Preview)</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Serif+Display:ital@0;1&display=swap" rel="stylesheet">
+    <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+    <link rel="stylesheet" href="assets/style.css">
+    <link rel="stylesheet" href="assets/auth.css">
+    <script defer src="assets/auth.js"></script>
+</head>
+
+<body>
+    <header class="site-header">
+        <div class="shell header-inner"><a class="wordmark" href="index.php"><span class="mark" aria-hidden="true">E<span>✳</span></span> exhibit<span class="wordmark-period">.</span></a>
+            <nav aria-label="Account navigation"><a href="explore.php">Explore Exhibit</a><a href="register.php">Create account ↗</a></nav><span class="edition">YOUR CREATIVE SPACE</span>
+        </div>
+    </header>
+    <main class="auth-shell shell">
+        <div class="auth-side">
+            <p class="eyebrow">EXHIBIT / WELCOME BACK</p>
+            <h1>Come back to<br><em>your curiosity.</em></h1>
+            <p>Stories worth sharing take time. Pick up where you left off, and keep building something wonderful.</p>
+            <div class="auth-art" aria-hidden="true">
+                <div class="orbit orbit-one"></div>
+                <div class="orbit orbit-two"></div>
+                <div class="orbit orbit-three"></div><span class="art-label">EXHIBIT / CREATOR STUDIO</span><span class="art-bottom">A HOME FOR STORIES THAT STAY WITH US ✳</span>
+            </div><span class="small-thought">Every exhibition begins somewhere. Yours can continue here.</span>
+        </div>
+        <section class="auth-panel" aria-labelledby="auth-heading">
+            <div class="auth-topline"><span>YOUR WORKSPACE</span><span>01 / SIGN IN</span></div>
+            <h2 id="auth-heading">Welcome back.</h2>
+            <p class="auth-subtitle">Sign in to return to your exhibitions and drafts.</p>
+            <div class="prototype-note" role="note"><span>✳</span><span><strong>Design preview.</strong> Authentication isn't connected yet. No credentials are sent or stored.</span></div>
+            <form class="auth-form" data-auth-preview novalidate><label for="email">Email address</label><input id="email" name="email" type="email" autocomplete="email" placeholder="you@example.com" required><label for="password">Password</label>
+                <div class="password-wrap"><input id="password" name="password" type="password" autocomplete="current-password" placeholder="Your password" required><button type="button" class="password-toggle" aria-label="Show password" aria-pressed="false">Show</button></div><button class="auth-submit" type="submit">Sign in <span aria-hidden="true">→</span></button>
+                <p class="auth-feedback" role="status" aria-live="polite">This is a design preview; sign-in is not active yet.</p>
+            </form><a class="auth-back" href="forgot-password.php">Forgot your password? →</a>
+            <div class="auth-switch">New to Exhibit? <a href="register.php">Create an account →</a></div><a class="auth-back" href="my-exhibitions.php">View the sample creator dashboard ↗</a>
+        </section>
+    </main>
+    <footer class="footer">
+        <div class="shell footer-inner"><span class="footer-brand">exhibit<span>.</span></span><span>Made for the endlessly curious.</span><span>© <?= date('Y') ?> Exhibit</span></div>
+    </footer>
+</body>
+
+</html>

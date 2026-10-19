@@ -1789,6 +1789,41 @@ a {
         font-size: 10px
     }
 }
+
 /* Connected MVP navigation: wrap gently without changing existing visual language. */
-@media (max-width: 900px) { .header-inner { gap: 18px; flex-wrap: wrap; padding-top: 15px; padding-bottom: 15px; } .header-inner nav { gap: 15px; flex-wrap: wrap; } .header-inner .edition { display: none; } }
-@media (max-width: 540px) { .header-inner { gap: 12px; } .header-inner nav { width: 100%; gap: 12px 18px; } }
+@media (max-width: 900px) {
+    .header-inner {
+        gap: 18px;
+        flex-wrap: wrap;
+        padding-top: 15px;
+        padding-bottom: 15px;
+    }
+
+    .header-inner nav {
+        gap: 15px;
+        flex-wrap: wrap;
+    }
+
+    .header-inner .edition {
+        display: none;
+    }
+}
+
+@media (max-width: 540px) {
+    .header-inner {
+        gap: 12px;
+    }
+
+    .header-inner nav {
+        width: 100%;
+        gap: 12px 18px;
+    }
+}
+
+
+/* Keep Explore visible in mobile navigation */
+@media (max-width: 500px) {
+    .header-inner nav a:first-child {
+        display: inline;
+    }
+}
