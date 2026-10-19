@@ -24,13 +24,10 @@ if (password && confirmPassword) {
   });
 }
 
-document.querySelectorAll('form[data-auth-preview]').forEach(form => {
+document.querySelectorAll('form[data-auth-form]').forEach(form => {
   form.addEventListener('submit', event => {
-    event.preventDefault();
-
     const feedback = form.querySelector('.auth-feedback');
 
-    // Validate matching passwords on the registration preview.
     const passwordField = form.querySelector('#password');
     const confirmField = form.querySelector('#confirm-password');
 
@@ -38,6 +35,7 @@ document.querySelectorAll('form[data-auth-preview]').forEach(form => {
       confirmField.setCustomValidity('');
 
       if (passwordField.value !== confirmField.value) {
+        event.preventDefault();
         confirmField.setCustomValidity('Passwords do not match.');
         confirmField.reportValidity();
 
@@ -47,23 +45,20 @@ document.querySelectorAll('form[data-auth-preview]').forEach(form => {
         return;
       }
     }
-
-    // Visual-only prototype: never send, save, or log credentials.
-    if (feedback) {
-      feedback.textContent =
-        form.dataset.authFeedback ||
-        'Preview only — no information was submitted or stored.';
-    }
   });
 });
 
-if (
-  location.pathname.endsWith('/verify-email.php') &&
-  new URLSearchParams(location.search).get('preview') === 'verified'
-) {
-  const success = document.getElementById('verify-success');
-  if (success) {
-    success.hidden = false;
-    success.scrollIntoView({ block: 'nearest' });
-  }
+const tokenForm = document.querySelector('.token-capture');
+if (tokenForm) {
+  tokenForm.hidden = true;
+  const captureToken = () => {
+    const token = new URLSearchParams(location.hash.slice(1)).get('token');
+    if (token !== null) {
+      history.replaceState(null, '', location.pathname);
+      tokenForm.elements.token.value = token;
+      tokenForm.submit();
+    }
+  };
+  addEventListener('hashchange', captureToken);
+  captureToken();
 }

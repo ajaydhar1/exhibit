@@ -16,26 +16,8 @@ function check(bool $condition, string $message): void
 /** @return array<string, array<string, string>> */
 function expectedColumns(): array
 {
-    $timestamps = ['created_at' => 'timestamp with time zone', 'updated_at' => 'timestamp with time zone'];
-    return [
-        'users' => [
-            'id' => 'bigint', 'email' => 'text', 'password_hash' => 'text', 'display_name' => 'text',
-        ] + $timestamps,
-        'exhibitions' => [
-            'id' => 'bigint', 'owner_id' => 'bigint', 'slug' => 'text', 'title' => 'text',
-            'subtitle' => 'text', 'summary' => 'text', 'description' => 'text', 'category' => 'text',
-            'cover' => 'jsonb', 'status' => 'text', 'published_at' => 'timestamp with time zone',
-        ] + $timestamps,
-        'chapters' => [
-            'id' => 'bigint', 'exhibition_id' => 'bigint', 'position' => 'integer', 'title' => 'text',
-            'summary' => 'text', 'era' => 'text', 'eyebrow' => 'text', 'intro' => 'text',
-            'ending_heading' => 'text', 'ending_text' => 'text',
-        ] + $timestamps,
-        'content_blocks' => [
-            'id' => 'bigint', 'chapter_id' => 'bigint', 'position' => 'integer', 'type' => 'text',
-            'content' => 'jsonb',
-        ] + $timestamps,
-    ];
+    require_once __DIR__ . '/../backend/schema.php';
+    return \Exhibit\Schema\expectedColumns();
 }
 
 function testEnvironment(array $environment): array

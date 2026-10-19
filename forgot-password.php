@@ -1,27 +1,16 @@
-<?php // Exhibit visual prototype only. No emails are sent, tokens verified, or passwords changed. 
+<?php
+$authPage = 'forgot-password';
+require __DIR__ . '/backend/auth-page.php';
 ?>
 <!doctype html>
 <html lang="en">
 
 <head>
 
-    <!-- Google tag (gtag.js) -->
-    <script async src="https://www.googletagmanager.com/gtag/js?id=G-E5SFFE66TD"></script>
-    <script>
-        window.dataLayer = window.dataLayer || [];
-
-        function gtag() {
-            dataLayer.push(arguments);
-        }
-        gtag('js', new Date());
-
-        gtag('config', 'G-E5SFFE66TD');
-    </script>
-
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <meta name="robots" content="noindex,nofollow">
-    <title>Forgot password — Exhibit (Preview)</title>
+    <title>Forgot password — Exhibit</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Serif+Display:ital@0;1&display=swap" rel="stylesheet">
@@ -51,12 +40,12 @@
         <section class="auth-panel" aria-labelledby="auth-heading">
             <div class="auth-topline"><span>ACCOUNT RECOVERY</span><span>03 / RESET LINK</span></div>
             <h2 id="auth-heading">Forgot your password?</h2>
-            <p class="auth-subtitle">Enter the email associated with your account. When accounts are live, we’ll send a secure reset link.</p>
-            <div class="prototype-note" role="note"><span>✳</span><span><strong>Design preview.</strong> These screens are not connected to email or accounts. Nothing is submitted, sent, or saved.</span></div>
-            <form class="auth-form" data-auth-preview data-auth-feedback="For this preview, no reset email was sent."><label for="email">Email address</label><input id="email" type="email" name="email" autocomplete="email" placeholder="you@example.com" required><button class="auth-submit" type="submit">Send reset link <span aria-hidden="true">→</span></button>
-                <p class="auth-feedback" role="status" aria-live="polite">No email will be sent in this design preview.</p>
+            <p class="auth-subtitle">Enter the email associated with your account to request a secure reset link.</p>
+            <div class="prototype-note" role="note"><span>✳</span><span><strong>A secure way back.</strong> Reset links expire after 30 minutes and can only be used once.</span></div>
+            <form class="auth-form" method="post" action="forgot-password.php" data-auth-form><?= $csrfInput ?><label for="email">Email address</label><input id="email" type="email" name="email" autocomplete="email" maxlength="254" value="<?= Exhibit\Auth\escape(Exhibit\Auth\post('email')) ?>" placeholder="you@example.com" required><button class="auth-submit" type="submit">Send reset link <span aria-hidden="true">→</span></button>
+                <p class="auth-feedback" role="status" aria-live="polite"><?= Exhibit\Auth\escape($feedback) ?></p>
             </form>
-            <div class="auth-switch">Remembered your password? <a href="sign-in.php">Back to sign in →</a></div><a class="auth-back" href="reset-password.php">Preview the reset screen ↗</a>
+            <div class="auth-switch">Remembered your password? <a href="sign-in.php">Back to sign in →</a></div><a class="auth-back" href="reset-password.php">Have a reset link? →</a>
         </section>
     </main>
     <footer class="footer">

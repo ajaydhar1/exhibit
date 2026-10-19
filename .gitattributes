@@ -1,0 +1,2 @@
+# Preserve the exact approved bytes used by checksum-bound authentication tooling.
+database/migrations/002_authentication.sql -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol

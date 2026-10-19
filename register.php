@@ -1,27 +1,16 @@
-<?php // Exhibit visual prototype only: no registration or credential submission. 
+<?php
+$authPage = 'register';
+require __DIR__ . '/backend/auth-page.php';
 ?>
 <!doctype html>
 <html lang="en">
 
 <head>
 
-    <!-- Google tag (gtag.js) -->
-    <script async src="https://www.googletagmanager.com/gtag/js?id=G-E5SFFE66TD"></script>
-    <script>
-        window.dataLayer = window.dataLayer || [];
-
-        function gtag() {
-            dataLayer.push(arguments);
-        }
-        gtag('js', new Date());
-
-        gtag('config', 'G-E5SFFE66TD');
-    </script>
-
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <meta name="robots" content="noindex,nofollow">
-    <title>Create account — Exhibit (Preview)</title>
+    <title>Create account — Exhibit</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Serif+Display:ital@0;1&display=swap" rel="stylesheet">
@@ -52,12 +41,13 @@
             <div class="auth-topline"><span>GETTING STARTED</span><span>02 / REGISTER</span></div>
             <h2 id="auth-heading">Create your space.</h2>
             <p class="auth-subtitle">A home for the exhibitions you haven't made yet.</p>
-            <div class="prototype-note" role="note"><span>✳</span><span><strong>Design preview.</strong> Account creation isn't active yet. No credentials are sent or stored.</span></div>
-            <form class="auth-form" data-auth-preview novalidate>
+            <div class="prototype-note" role="note"><span>✳</span><span><strong>Your creator account.</strong> Verify your email to access your workspace. Exhibition saving is not available yet.</span></div>
+            <form class="auth-form" method="post" action="register.php" data-auth-form>
+                <?= $csrfInput ?>
                 <label for="name">Display name</label>
-                <input id="name" name="name" autocomplete="name" maxlength="100" placeholder="What should we call you?" required>
+                <input id="name" name="name" autocomplete="name" maxlength="100" value="<?= Exhibit\Auth\escape(Exhibit\Auth\post('name')) ?>" placeholder="What should we call you?" required>
                 <label for="email">Email address</label>
-                <input id="email" name="email" type="email" autocomplete="email" placeholder="you@example.com" required>
+                <input id="email" name="email" type="email" autocomplete="email" maxlength="254" value="<?= Exhibit\Auth\escape(Exhibit\Auth\post('email')) ?>" placeholder="you@example.com" required>
                 <label for="password">Create password</label>
                 <div class="password-wrap">
                     <input id="password" name="password" type="password" autocomplete="new-password" minlength="12" placeholder="At least 12 characters" required>
@@ -81,10 +71,10 @@
                         aria-pressed="false">Show</button>
                 </div>
 
-                <p class="field-hint">When accounts go live, you'll be able to save drafts and manage your exhibitions here.</p><button class="auth-submit" type="submit">Create account <span aria-hidden="true">→</span></button>
-                <p class="auth-feedback" role="status" aria-live="polite">This is a design preview; registration is not active yet.</p>
+                <p class="field-hint">Use at least 12 characters, up to 72 bytes. Your email must be verified before entering the workspace.</p><button class="auth-submit" type="submit">Create account <span aria-hidden="true">→</span></button>
+                <p class="auth-feedback" role="status" aria-live="polite"><?= Exhibit\Auth\escape($feedback) ?></p>
             </form>
-            <div class="auth-switch">Already have an account? <a href="sign-in.php">Sign in →</a></div><a class="auth-back" href="verify-email.php">Preview email verification →</a><a class="auth-back auth-secondary-back" href="studio.php">Explore the Studio preview ↗</a>
+            <div class="auth-switch">Already have an account? <a href="sign-in.php">Sign in →</a></div><a class="auth-back" href="verify-email.php">Email verification →</a><a class="auth-back auth-secondary-back" href="studio.php">Explore the Studio preview ↗</a>
         </section>
     </main>
     <footer class="footer">

@@ -1,27 +1,16 @@
-<?php // Exhibit visual prototype only: no authentication or credential submission. 
+<?php
+$authPage = 'sign-in';
+require __DIR__ . '/backend/auth-page.php';
 ?>
 <!doctype html>
 <html lang="en">
 
 <head>
 
-    <!-- Google tag (gtag.js) -->
-    <script async src="https://www.googletagmanager.com/gtag/js?id=G-E5SFFE66TD"></script>
-    <script>
-        window.dataLayer = window.dataLayer || [];
-
-        function gtag() {
-            dataLayer.push(arguments);
-        }
-        gtag('js', new Date());
-
-        gtag('config', 'G-E5SFFE66TD');
-    </script>
-
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <meta name="robots" content="noindex,nofollow">
-    <title>Sign in — Exhibit (Preview)</title>
+    <title>Sign in — Exhibit</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Serif+Display:ital@0;1&display=swap" rel="stylesheet">
@@ -52,12 +41,15 @@
             <div class="auth-topline"><span>YOUR WORKSPACE</span><span>01 / SIGN IN</span></div>
             <h2 id="auth-heading">Welcome back.</h2>
             <p class="auth-subtitle">Sign in to return to your exhibitions and drafts.</p>
-            <div class="prototype-note" role="note"><span>✳</span><span><strong>Design preview.</strong> Authentication isn't connected yet. No credentials are sent or stored.</span></div>
-            <form class="auth-form" data-auth-preview novalidate><label for="email">Email address</label><input id="email" name="email" type="email" autocomplete="email" placeholder="you@example.com" required><label for="password">Password</label>
+            <div class="prototype-note" role="note"><span>✳</span><span><strong>Your creator workspace.</strong> Sign in with your verified account. Exhibition content remains sample-only.</span></div>
+            <form class="auth-form" method="post" action="sign-in.php" data-auth-form><?= $csrfInput ?><label for="email">Email address</label><input id="email" name="email" type="email" autocomplete="email" maxlength="254" value="<?= Exhibit\Auth\escape(Exhibit\Auth\post('email')) ?>" placeholder="you@example.com" required><label for="password">Password</label>
                 <div class="password-wrap"><input id="password" name="password" type="password" autocomplete="current-password" placeholder="Your password" required><button type="button" class="password-toggle" aria-label="Show password" aria-pressed="false">Show</button></div><button class="auth-submit" type="submit">Sign in <span aria-hidden="true">→</span></button>
-                <p class="auth-feedback" role="status" aria-live="polite">This is a design preview; sign-in is not active yet.</p>
+                <p class="auth-feedback" role="status" aria-live="polite"><?= Exhibit\Auth\escape($feedback) ?></p>
             </form><a class="auth-back" href="forgot-password.php">Forgot your password? →</a>
-            <div class="auth-switch">New to Exhibit? <a href="register.php">Create an account →</a></div><a class="auth-back" href="my-exhibitions.php">View the sample creator dashboard ↗</a>
+            <div class="auth-switch">New to Exhibit? <a href="register.php">Create an account →</a></div><a class="auth-back" href="my-exhibitions.php">Creator dashboard ↗</a>
+            <?php if (isset($_SESSION['user_id'])): ?>
+                <form class="auth-form" method="post" action="logout.php"><?= $csrfInput ?><button class="auth-submit" type="submit">Sign out <span aria-hidden="true">→</span></button></form>
+            <?php endif; ?>
         </section>
     </main>
     <footer class="footer">

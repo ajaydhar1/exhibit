@@ -1,5 +1,7 @@
 <?php
-// Design prototype only. These are sample records, not authenticated user data.
+require_once __DIR__ . '/backend/auth.php';
+Exhibit\Auth\requireCreator();
+// These are sample records, not authenticated user data.
 $sampleExhibitions = [
   [
     'title' => 'The Birth of the Internet',
@@ -60,12 +62,12 @@ function exhibitEscape(string $value): string
   <header class="site-header">
     <div class="shell header-inner">
       <a class="wordmark" href="index.php" aria-label="Exhibit home"><span class="mark" aria-hidden="true">E<span>✳</span></span> exhibit<span class="wordmark-period">.</span></a>
-      <nav aria-label="Main navigation"><a href="explore.php">Explore</a><a href="new-exhibition.php">New exhibition</a><a href="studio.php">Studio</a><a href="sign-in.php">Sign in</a></nav>
+      <nav aria-label="Main navigation"><a href="explore.php">Explore</a><a href="new-exhibition.php">New exhibition</a><a href="studio.php">Studio</a><a href="sign-in.php">Account</a></nav>
       <span class="edition">CREATOR WORKSPACE · PREVIEW</span>
     </div>
   </header>
   <main class="workspace shell">
-    <div class="prototype-banner" role="note"><span class="banner-indicator"></span><strong>Design preview</strong><span>Sample exhibitions only. Accounts, editing, and publishing are not yet enabled.</span></div>
+    <div class="prototype-banner" role="note"><span class="banner-indicator"></span><strong>Design preview</strong><span>Sample exhibitions only. Your account is active; exhibition saving and publishing are not yet enabled.</span></div>
     <section class="workspace-intro" aria-labelledby="workspace-title">
       <div>
         <p class="eyebrow"><span class="eyebrow-line"></span> YOUR CREATIVE SPACE / 001</p>

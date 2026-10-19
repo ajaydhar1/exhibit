@@ -1,4 +1,6 @@
 <?php
+require_once __DIR__ . '/backend/auth.php';
+Exhibit\Auth\requireCreator();
 // Exhibit Studio — interactive design prototype. Nothing is persisted or published.
 ?>
 <!doctype html>

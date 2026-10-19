@@ -164,7 +164,11 @@ $tests['JSON objects and allowlisted block types'] = static function (PDO $pdo, 
     check($pdo->query('SELECT DISTINCT type FROM public.content_blocks ORDER BY type')->fetchAll(PDO::FETCH_COLUMN) === ['artifact', 'figure', 'text'], 'Valid block types missing.');
 };
 $tests['User deletion restricted while owned exhibitions exist'] = static function (PDO $pdo, array $f): void {
-    expectSqlState($pdo, '23503', 'DELETE FROM public.users WHERE id = ?', [$f['user']]);
+    expectSqlState($pdo, '23001', 'DELETE FROM public.users WHERE id = ?', [$f['user']]);
+    check(executeTestSql($pdo, 'SELECT id FROM public.users WHERE id = ?', [$f['user']])->fetchColumn() !== false,
+        'Restricted deletion must retain the owner.');
+    check((int) executeTestSql($pdo, 'SELECT count(*) FROM public.exhibitions WHERE owner_id = ?', [$f['user']])->fetchColumn() === 2,
+        'Restricted deletion must retain owned exhibitions.');
     executeTestSql($pdo, 'DELETE FROM public.exhibitions WHERE owner_id = ?', [$f['user']]);
     check(executeTestSql($pdo, 'DELETE FROM public.users WHERE id = ?', [$f['user']])->rowCount() === 1, 'Unreferenced user should be deletable.');
 };

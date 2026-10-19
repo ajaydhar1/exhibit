@@ -1,4 +1,7 @@
-<?php // Exhibit — create-exhibition design preview; no saved data or publishing. 
+<?php
+require_once __DIR__ . '/backend/auth.php';
+Exhibit\Auth\requireCreator();
+// Exhibit create-exhibition design preview; no saved data or publishing.
 ?>
 <!doctype html>
 <html lang="en">

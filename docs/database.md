@@ -2,13 +2,48 @@
 
 ## Scope and current behavior
 
-This milestone prepares a PostgreSQL foundation only. No page includes the helper,
-no database is contacted on page load, and all approved screens, assets, navigation,
-and browser-only interactions remain unchanged. There is no authentication,
-registration, email delivery, Studio persistence, or publish endpoint.
+This document records the original PostgreSQL foundation milestone and its
+initialization procedure. Authentication now uses this foundation; see
+[Authentication setup](authentication.md) for the new approval-gated migration,
+account/session behavior, encrypted email queue, and current test commands.
+Public content remains database-independent. Studio persistence and publishing
+are still not implemented. Sections below describing disconnected screens or
+exactly four tables refer to the original foundation, not the authentication
+extension.
+
+The operator has now also applied the explicitly approved authentication migration
+and supplied a successful independent read-only verification report. See the
+[activation record](authentication-activation.md) for exact identity, checksum,
+recovery and verification evidence. **Do not rerun either migration.** The original
+four-table-only live foundation check below predates this extension; use
+`database/auth-migrate.php --verify --database=NAME` for the initialized auth schema.
 
 The initial migration is [001_initial.sql](../database/migrations/001_initial.sql).
-It has **not been executed**. Do not run it against Render before review.
+It was approved and applied to the existing Render database; **do not rerun it**.
+The initialization instructions below are retained as procedure documentation,
+not a request to execute them again.
+
+### Completed milestones (2026-10-19)
+
+The operator reported the following results from the local credential-bearing
+terminal; no secrets or connection identifiers are recorded here:
+
+- Isolated PHP **8.4.26** / bundled libpq **16.15** successfully authenticated using
+  the existing PDO helper, the expected database, `verify-full`, and active
+  **TLSv1.3**. Diagnostics were read-only.
+- The initial migration was subsequently explicitly approved and executed;
+  the transactional runner reported **Initial schema committed**.
+- Applied migration SHA-256:
+  `b26a08aa73102e47a0e09bce8d42f4ecdfa2c2461514d95aae12800a8ac98dcb`.
+- Post-initialization validation reported **55 tests, 0 failures**, exit code **0**.
+  Live checks used read-only queries.
+
+Database connectivity and initial schema initialization are completed milestones.
+These are operator-provided verification results, not independently repeated
+connections. Do not run the initial migration or disposable behavior suite against
+this initialized database. Future schema changes require a new reviewed migration.
+These results do not imply that the authentication migration has run or that any
+web-service deployment or environment change has occurred.
 
 ## Schema review against the approved workflows
 
@@ -291,10 +326,10 @@ credential copy is needed. The diagnostic only probes connectivity and executes
 read-only identity/TLS metadata queries; it never installs a schema.
 
 Offline verification with this runtime: **54 tests passed and all 26 PHP files
-linted**. A successful native `psql` check is not yet proof that this PDO runtime
-can connect; record its actual diagnostic result before continuing. If successful,
-use this same `$Php` and `$PhpArgs` for the separately approved read-only preflight.
-Do not apply migrations without explicit approval.
+linted**. Subsequent operator verification confirmed that this PDO runtime connects
+with `verify-full` and TLSv1.3; the approved migration and post-initialization
+validation also succeeded, as recorded above. Retain this runtime for future
+authorized CLI work. Do not rerun the initial migration.
 
 For future portable-runtime updates, choose a supported PHP 8.4 x64 NTS build from
 [official PHP downloads](https://www.php.net/downloads.php?os=windows), verify its
@@ -480,7 +515,10 @@ pass its loopback URL including the Exhibit subdirectory.
   been executed against a PostgreSQL server. Restore a complete local PostgreSQL
   installation or use a disposable PostgreSQL container to close this gap.
 
-## Safest initialization sequence (not performed)
+## Initialization procedure reference (completed; do not rerun)
+
+The operator has completed initialization as recorded above. The steps below
+describe the approval-gated procedure; they are not pending actions on Render.
 
 1. Review the uncommitted diff. Run the offline suite and the nonconnecting plan:
 
