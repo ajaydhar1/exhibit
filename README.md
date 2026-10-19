@@ -40,3 +40,10 @@ Open `studio.php` locally, or use **Open Studio preview** from `my-exhibitions.p
 ## Create Exhibition screen (prototype)
 
 Open `new-exhibition.php` from the My Exhibitions dashboard. This is a design-only screen with editable title, summary, subject and optional remote cover URL, with a live preview. The Continue button explains that creating a persistent exhibition is not yet implemented. Nothing is saved to a database or published.
+
+## Creator authentication screen previews
+
+- `sign-in.php` — Sign In design preview
+- `register.php` — Register design preview
+
+These are **visual-only prototypes**. They deliberately have no authentication endpoint, no saved credentials, and no functional account creation. Forms prevent submission. Do not ask users to enter real passwords into prototypes. Do not deploy these previews publicly as working authentication; implement secure server-side authentication, rate limiting, CSRF defense, and session handling first.
