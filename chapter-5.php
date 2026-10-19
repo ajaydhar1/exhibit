@@ -1,10 +1,107 @@
-<?php // Exhibit / authored historical overview, no database. ?>
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="Chapter 5 of The Birth of the Internet — Exhibit."><title>Chapter 05 — Exhibit</title><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Serif+Display:ital@0;1&display=swap" rel="stylesheet">  <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
-  <link rel="stylesheet" href="assets/style.css"></head><body>
-<header class="site-header"><div class="shell header-inner"><a class="wordmark" href="index.php" aria-label="Exhibit home"><span class="mark" aria-hidden="true">E<span>✳</span></span> exhibit<span class="wordmark-period">.</span></a><nav aria-label="Main navigation"><a href="exhibition.php">Exhibition overview</a><a href="index.php#featured">Featured exhibition</a></nav><span class="edition">THE BIRTH OF THE INTERNET</span></div></header>
-<main id="main"><section class="viewer-top shell" aria-labelledby="chapter-title"><a class="back-link" href="exhibition.php#chapters">← Back to chapters</a><div class="viewer-progress-meta"><span>THE BIRTH OF THE INTERNET</span><span>CHAPTER 05 OF 05</span></div><div class="viewer-progress" role="progressbar" aria-label="Exhibition chapter progress" aria-valuemin="0" aria-valuemax="5" aria-valuenow="5"><span style="width:100%"></span></div><div class="viewer-heading-grid"><div><p class="eyebrow"><span class="eyebrow-line"></span> 2000s–TODAY / THE CONNECTED WORLD</p><h1 id="chapter-title">Always<br><em>Connected.</em></h1></div><p class="viewer-intro">What began as an experiment became an everyday environment for communicating, creating, learning, and living.</p></div></section>
-<section class="chapter-feature-stage"><div class="shell"><div class="feature-graphic world-graphic" role="img" aria-label="Conceptual illustration of a connected globe surrounded by communications and media symbols"><div class="globe-orbit"><div class="globe-core">◎</div><span class="orbit-label label-one">MESSAGE</span><span class="orbit-label label-two">VIDEO</span><span class="orbit-label label-three">MAPS</span><span class="orbit-label label-four">IDEAS</span></div></div><div class="stage-caption"><span>FIG. 05 — A CONNECTED WORLD / CONCEPTUAL VISUAL</span><span>ORIGINAL INTERPRETIVE ILLUSTRATION</span></div></div></section>
-<section class="viewer-story shell"><div class="viewer-side-note"><span class="eyebrow">01 / THE EVERYDAY INTERNET</span><span>The web leaves the desktop.</span></div><div class="viewer-prose"><h2>From a place<br><em>to a presence.</em></h2><p class='dropcap'>In the 2000s, broadband connections, Wi-Fi, and increasingly capable mobile devices made the internet more accessible and more persistent. Online experiences spread beyond the desktop computer.</p><p>People started publishing blogs, sharing videos, participating in social networks, and collaborating across distances. The web changed from a place to read information into a place to contribute and communicate.</p><p>Smartphones made network access part of everyday routines. A map, a message, a song, or a question could travel with someone throughout the day.</p></div></section>
-<section class="artifact-band"><div class="shell artifact-grid"><div class="artifact-visual later-artifact"><div class="artifact-label">CONCEPT / AN EVERYDAY NETWORK</div><div class="exhibit-mini-visual world-visual"><span>LEARN</span><b>↔ CONNECT ↔</b><span>CREATE</span></div><div class="artifact-bottom">EXHIBIT / ORIGINAL INTERPRETIVE GRAPHIC</div></div><div class="artifact-copy"><p class="eyebrow">CONCEPT / AN EVERYDAY NETWORK</p><h2>A billion<br><em>little connections.</em></h2><p>The same underlying network can carry messages, films, scientific data, maps, and calls. The variety of applications is enormous; the shared infrastructure is what makes the variety possible.</p><p class="artifact-caption">Conceptual diagram created for this prototype; not a historical reproduction.</p></div></div></section>
-<section class="viewer-story shell story-second"><div class="viewer-side-note"><span class="eyebrow">02 / WHAT COMES NEXT</span><span>The story is still being written.</span></div><div class="viewer-prose"><h2>Connected,<br><em>and still changing.</em></h2><p>The internet has opened avenues for creativity, education, commerce, and public participation, while also introducing challenges around privacy, security, misinformation, and access.</p><p>Its future is not fixed. Decisions by engineers, institutions, governments, companies, and individual users continue to shape what this connected world becomes.</p><p>The early researchers could hardly have predicted every modern use of their networks. But the central possibility they explored remains familiar: people and machines finding new ways to connect.</p></div></section>
-<section class="viewer-ending shell" aria-label="Chapter navigation"><div><p class="eyebrow">CHAPTER 05 COMPLETE</p><h2>The story<br><em>continues.</em></h2><p>You’ve completed The Birth of the Internet. Return to the overview or revisit any chapter.</p></div><div class="viewer-ending-actions"><span class="viewer-next-muted">EXHIBITION COMPLETE · ALL 5 CHAPTERS</span><a class="primary-link" href="exhibition.php#chapters">Explore the chapters ↗</a><a class="viewer-secondary-link" href="chapter-4.php">← Previous chapter</a><a class="viewer-secondary-link" href="exhibition.php#chapters">Browse all chapters ↗</a><a class="viewer-secondary-link" href="#main">Back to chapter start ↑</a></div></section></main><footer class="footer"><div class="shell footer-inner"><span class="footer-brand">exhibit<span>.</span></span><span>Made for the endlessly curious.</span><span>© <?=date('Y')?> Exhibit</span></div></footer></body></html>
+<?php // Exhibit / authored historical overview, no database. 
+?>
+<!doctype html>
+<html lang="en">
+
+<head>
+
+  <!-- Google tag (gtag.js) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-E5SFFE66TD"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+
+    function gtag() {
+      dataLayer.push(arguments);
+    }
+    gtag('js', new Date());
+
+    gtag('config', 'G-E5SFFE66TD');
+  </script>
+
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="Chapter 5 of The Birth of the Internet — Exhibit.">
+  <title>Chapter 05 — Exhibit</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Serif+Display:ital@0;1&display=swap" rel="stylesheet">
+  <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+  <link rel="stylesheet" href="assets/style.css">
+</head>
+
+<body>
+  <header class="site-header">
+    <div class="shell header-inner"><a class="wordmark" href="index.php" aria-label="Exhibit home"><span class="mark" aria-hidden="true">E<span>✳</span></span> exhibit<span class="wordmark-period">.</span></a>
+      <nav aria-label="Main navigation"><a href="exhibition.php">Exhibition overview</a><a href="index.php#featured">Featured exhibition</a></nav><span class="edition">THE BIRTH OF THE INTERNET</span>
+    </div>
+  </header>
+  <main id="main">
+    <section class="viewer-top shell" aria-labelledby="chapter-title"><a class="back-link" href="exhibition.php#chapters">← Back to chapters</a>
+      <div class="viewer-progress-meta"><span>THE BIRTH OF THE INTERNET</span><span>CHAPTER 05 OF 05</span></div>
+      <div class="viewer-progress" role="progressbar" aria-label="Exhibition chapter progress" aria-valuemin="0" aria-valuemax="5" aria-valuenow="5"><span style="width:100%"></span></div>
+      <div class="viewer-heading-grid">
+        <div>
+          <p class="eyebrow"><span class="eyebrow-line"></span> 2000s–TODAY / THE CONNECTED WORLD</p>
+          <h1 id="chapter-title">Always<br><em>Connected.</em></h1>
+        </div>
+        <p class="viewer-intro">What began as an experiment became an everyday environment for communicating, creating, learning, and living.</p>
+      </div>
+    </section>
+    <section class="chapter-feature-stage">
+      <div class="shell">
+        <div class="feature-graphic world-graphic" role="img" aria-label="Conceptual illustration of a connected globe surrounded by communications and media symbols">
+          <div class="globe-orbit">
+            <div class="globe-core">◎</div><span class="orbit-label label-one">MESSAGE</span><span class="orbit-label label-two">VIDEO</span><span class="orbit-label label-three">MAPS</span><span class="orbit-label label-four">IDEAS</span>
+          </div>
+        </div>
+        <div class="stage-caption"><span>FIG. 05 — A CONNECTED WORLD / CONCEPTUAL VISUAL</span><span>ORIGINAL INTERPRETIVE ILLUSTRATION</span></div>
+      </div>
+    </section>
+    <section class="viewer-story shell">
+      <div class="viewer-side-note"><span class="eyebrow">01 / THE EVERYDAY INTERNET</span><span>The web leaves the desktop.</span></div>
+      <div class="viewer-prose">
+        <h2>From a place<br><em>to a presence.</em></h2>
+        <p class='dropcap'>In the 2000s, broadband connections, Wi-Fi, and increasingly capable mobile devices made the internet more accessible and more persistent. Online experiences spread beyond the desktop computer.</p>
+        <p>People started publishing blogs, sharing videos, participating in social networks, and collaborating across distances. The web changed from a place to read information into a place to contribute and communicate.</p>
+        <p>Smartphones made network access part of everyday routines. A map, a message, a song, or a question could travel with someone throughout the day.</p>
+      </div>
+    </section>
+    <section class="artifact-band">
+      <div class="shell artifact-grid">
+        <div class="artifact-visual later-artifact">
+          <div class="artifact-label">CONCEPT / AN EVERYDAY NETWORK</div>
+          <div class="exhibit-mini-visual world-visual"><span>LEARN</span><b>↔ CONNECT ↔</b><span>CREATE</span></div>
+          <div class="artifact-bottom">EXHIBIT / ORIGINAL INTERPRETIVE GRAPHIC</div>
+        </div>
+        <div class="artifact-copy">
+          <p class="eyebrow">CONCEPT / AN EVERYDAY NETWORK</p>
+          <h2>A billion<br><em>little connections.</em></h2>
+          <p>The same underlying network can carry messages, films, scientific data, maps, and calls. The variety of applications is enormous; the shared infrastructure is what makes the variety possible.</p>
+          <p class="artifact-caption">Conceptual diagram created for this prototype; not a historical reproduction.</p>
+        </div>
+      </div>
+    </section>
+    <section class="viewer-story shell story-second">
+      <div class="viewer-side-note"><span class="eyebrow">02 / WHAT COMES NEXT</span><span>The story is still being written.</span></div>
+      <div class="viewer-prose">
+        <h2>Connected,<br><em>and still changing.</em></h2>
+        <p>The internet has opened avenues for creativity, education, commerce, and public participation, while also introducing challenges around privacy, security, misinformation, and access.</p>
+        <p>Its future is not fixed. Decisions by engineers, institutions, governments, companies, and individual users continue to shape what this connected world becomes.</p>
+        <p>The early researchers could hardly have predicted every modern use of their networks. But the central possibility they explored remains familiar: people and machines finding new ways to connect.</p>
+      </div>
+    </section>
+    <section class="viewer-ending shell" aria-label="Chapter navigation">
+      <div>
+        <p class="eyebrow">CHAPTER 05 COMPLETE</p>
+        <h2>The story<br><em>continues.</em></h2>
+        <p>You’ve completed The Birth of the Internet. Return to the overview or revisit any chapter.</p>
+      </div>
+      <div class="viewer-ending-actions"><span class="viewer-next-muted">EXHIBITION COMPLETE · ALL 5 CHAPTERS</span><a class="primary-link" href="exhibition.php#chapters">Explore the chapters ↗</a><a class="viewer-secondary-link" href="chapter-4.php">← Previous chapter</a><a class="viewer-secondary-link" href="exhibition.php#chapters">Browse all chapters ↗</a><a class="viewer-secondary-link" href="#main">Back to chapter start ↑</a></div>
+    </section>
+  </main>
+  <footer class="footer">
+    <div class="shell footer-inner"><span class="footer-brand">exhibit<span>.</span></span><span>Made for the endlessly curious.</span><span>© <?= date('Y') ?> Exhibit</span></div>
+  </footer>
+</body>
+
+</html>
