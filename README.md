@@ -27,3 +27,11 @@ All navigation uses regular `.php` links. No `.htaccess` rewriting or database i
 The image listens on port 10000, with `PORT=10000` as its documented deployment setting. If the hosting port requirement changes, adjust the Apache config accordingly. This is a public demo, not yet an editable multi-user MVP.
 
 The content is prototype material; fact-check and confirm image rights before any public launch.
+
+## Creator workspace design preview
+
+Open `my-exhibitions.php` locally to view the **My Exhibitions** screen. It contains sample exhibition cards only. The dashboard is deliberately not linked from the public navigation; authentication, editing, draft management, and publishing are not implemented. The preview has a `noindex` directive. Do not treat the sample draft as saved data or expose the screen as a working creator account.
+
+## Exhibition Studio interactive preview
+
+Open `studio.php` locally, or use **Open Studio preview** from `my-exhibitions.php`. Chapter switching, title/era/narrative edits, adding/removing text or artifact blocks, and the live preview work in browser memory only. Refreshing the page discards all changes. Save/publish functionality is intentionally disabled; no database or authentication exists. Keep this preview out of public navigation until the creator workflow is implemented.
