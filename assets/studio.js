@@ -14,6 +14,9 @@
   const baseline = JSON.parse(form.dataset.baseline);
   const status = document.getElementById('save-status');
   const button = document.getElementById('save-draft');
+  const publishButton = document.getElementById('publish-exhibition');
+  const publishForm = document.getElementById('publish-form');
+  const publishRevision = document.getElementById('publish-revision');
   let initialMessage = status.textContent;
   let initialState = status.dataset.state;
   let submitting = false;
@@ -44,6 +47,7 @@
   const setStatus = (state, message) => {
     status.dataset.state = state;
     status.textContent = message;
+    if (publishButton) publishButton.disabled = button.disabled || submitting || dirty() || state !== 'saved';
   };
   const changed = () => {
     preview();
@@ -327,6 +331,7 @@
       }
       editorFields.forEach(({input, read}) => { input.value = read(); });
       form.elements.namedItem('revision').value = result.revision;
+      if (publishRevision) publishRevision.value = result.revision;
       initialState = 'saved';
       initialMessage = result.message;
       renderList();
@@ -338,6 +343,7 @@
       submitting = false;
       controls.forEach((control, index) => { control.disabled = disabled[index]; });
       button.disabled = !editable;
+      if (publishButton) publishButton.disabled = !editable || dirty() || status.dataset.state !== 'saved';
       if (active && !active.disabled) {
         active.focus({preventScroll: true});
         if (selection) active.setSelectionRange(...selection);
@@ -349,6 +355,14 @@
     }
   });
   document.getElementById('edit-details').addEventListener('click', () => choose(-1));
+  if (publishForm) {
+    publishForm.addEventListener('submit', event => {
+      if (submitting || dirty() || button.disabled || status.dataset.state !== 'saved') {
+        event.preventDefault();
+        setStatus('error', 'Save your changes successfully before publishing.');
+      }
+    });
+  }
   if (chapters !== null) {
     const addChapter = document.getElementById('add-chapter');
     addChapter.disabled = button.disabled;

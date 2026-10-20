@@ -56,7 +56,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </div>
   </header>
   <main class="create-shell shell">
-    <div class="create-note" role="note"><span class="note-spark">✳</span><strong>Begin a draft</strong><span>Save your exhibition privately, then edit its details in Studio. Publishing is not available yet.</span></div>
+    <div class="create-note" role="note"><span class="note-spark">✳</span><strong>Begin a draft</strong><span>Save your exhibition privately, then shape its chapters in Studio and publish when ready.</span></div>
     <div class="create-intro">
       <p class="eyebrow"><span class="eyebrow-line"></span> EXHIBITION STUDIO / GETTING STARTED</p>
       <h1>Every exhibition<br>begins with <em>curiosity.</em></h1>
@@ -106,7 +106,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           <p class="preview-description" id="pv-summary">An exhibition worth exploring begins with a question. What will yours be?</p><span class="preview-chapter">CHAPTER 01 · WAITING TO BE WRITTEN</span>
         </div>
         <div class="preview-hint"><span>✳</span>
-          <p>Save your idea to open it in Studio. Chapter editing and media tools are coming in a later milestone.</p>
+          <p>Open your saved idea in Studio to add chapters, text, artifacts, and images before publishing.</p>
         </div>
       </aside>
     </div>

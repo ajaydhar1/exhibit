@@ -21,7 +21,7 @@ $path = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
 $pages = ['index.php', 'explore.php', 'exhibition.php', 'view.php', 'chapter-2.php',
     'chapter-3.php', 'chapter-4.php', 'chapter-5.php', 'sign-in.php', 'register.php',
     'forgot-password.php', 'reset-password.php', 'verify-email.php', 'logout.php',
-    'my-exhibitions.php', 'new-exhibition.php', 'studio.php'];
+    'my-exhibitions.php', 'new-exhibition.php', 'studio.php', 'publish.php'];
 $page = $path === '/' ? 'index.php' : substr((string) $path, 1);
 $asset = preg_match('/\Aassets\/[a-zA-Z0-9_.-]+\.(?:css|js|svg|png|jpg|jpeg|webp|woff2?)\z/', $page) === 1;
 if ((!in_array($page, $pages, true) && !$asset) || !is_file(dirname(__DIR__) . '/' . $page)) {

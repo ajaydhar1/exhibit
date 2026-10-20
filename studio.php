@@ -100,7 +100,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   $feedback = 'Draft saved successfully.';
 }
 if ($exhibition['status'] !== 'draft') {
-  $feedback = 'Only private drafts can be edited in this milestone.';
+  $feedback = 'Published exhibition. Read-only.';
 }
 $previewCover = Exhibitions\validCoverUrl(trim($values['cover'])) ? trim($values['cover']) : null;
 ?>
@@ -132,19 +132,29 @@ $previewCover = Exhibitions\validCoverUrl(trim($values['cover'])) ? trim($values
     </div>
   </header>
   <main class="studio-shell">
-    <div class="studio-warning" role="note"><span class="warning-dot"></span><strong>Private draft</strong><span>Edit your exhibition and chapters, then save when ready. Publishing is not available yet.</span></div>
+    <div class="studio-warning" role="note"><span class="warning-dot"></span><strong><?= $exhibition['status'] === 'draft' ? 'Private draft' : 'Published exhibition' ?></strong><span><?= $exhibition['status'] === 'draft' ? 'Edit and save privately, then publish your saved exhibition when ready.' : 'This exhibition is public and read-only. Editing and unpublishing are not available in this MVP.' ?></span></div>
     <div class="studio-topline">
       <div>
         <p class="eyebrow">EXHIBITION STUDIO / <?= $id ?></p>
         <h1>Shape a <em>story.</em></h1>
-        <p>Shape your story. Save your work privately.</p>
+        <p><?= $exhibition['status'] === 'draft' ? 'Shape your story. Save your work privately.' : 'Your story is ready for visitors.' ?></p>
       </div>
       <div class="studio-actions"><span class="status-note" id="save-status" role="status" aria-live="polite" data-state="<?= $state ?>"><?= Auth\escape($feedback) ?></span><button type="button" id="preview-toggle" class="studio-btn" aria-controls="studio-preview" aria-expanded="true">Hide preview</button><button type="submit" form="studio-form" id="save-draft" class="studio-btn"<?= !$editable ? ' disabled' : '' ?>>Save Draft</button></div>
     </div>
+    <?php if ($exhibition['status'] === 'draft'): ?>
+      <form id="publish-form" class="studio-publish" method="get" action="publish.php">
+        <input type="hidden" name="id" value="<?= $id ?>">
+        <input type="hidden" id="publish-revision" name="revision" value="<?= Auth\escape($revision) ?>">
+        <button id="publish-exhibition" class="studio-btn" type="submit"<?= !$editable || $state === 'error' ? ' disabled' : '' ?>>Review &amp; publish</button>
+        <span>Publishes the saved version only. Save any changes first.</span>
+      </form>
+    <?php else: ?>
+      <p><a class="studio-btn" href="exhibition.php?id=<?= $id ?>">View public exhibition ↗</a></p>
+    <?php endif; ?>
     <div class="exhibit-project-bar">
       <div><span class="project-icon">✳</span>
         <div><span class="project-kicker">CURRENT EXHIBITION</span><strong id="project-title"><?= Auth\escape($values['title']) ?></strong></div>
-      </div><span class="sample-state">PRIVATE EXHIBITION</span>
+      </div><span class="sample-state"><?= $exhibition['status'] === 'draft' ? 'PRIVATE EXHIBITION' : 'PUBLIC EXHIBITION' ?></span>
     </div>
     <div class="studio-layout" id="studio-layout">
       <aside class="studio-side" aria-label="Chapter organizer">
@@ -162,13 +172,14 @@ $previewCover = Exhibitions\validCoverUrl(trim($values['cover'])) ? trim($values
       <section class="studio-editor" aria-labelledby="editor-title">
         <div class="pane-heading editor-pane-heading"><span>02 / CREATE</span>
           <h2 id="editor-title">Exhibition details</h2>
-          <p>Edit the beginning of your exhibition.</p>
+          <p><?= $exhibition['status'] === 'draft' ? 'Edit the beginning of your exhibition.' : 'Review your published exhibition.' ?></p>
         </div>
         <form class="editor-inner" id="studio-form" method="post" action="studio.php?id=<?= $id ?>" novalidate data-baseline="<?= Auth\escape(json_encode($baseline, JSON_THROW_ON_ERROR)) ?>">
           <input type="hidden" name="csrf" value="<?= Auth\escape($_SESSION['csrf']) ?>">
           <input type="hidden" name="revision" value="<?= Auth\escape($revision) ?>">
           <input type="hidden" id="exhibition-chapters_json" name="chapters_json" value="<?= Auth\escape($values['chapters_json']) ?>">
           <p class="field-error" id="content-error" role="alert"><?= Auth\escape($errors['content'] ?? '') ?></p>
+          <fieldset class="studio-fields"<?= $exhibition['status'] === 'published' ? ' disabled' : '' ?>>
           <div id="details-editor">
           <div class="chapter-overline"><span>EXHIBITION INFORMATION</span><span class="working-tag"><?= Auth\escape(strtoupper($exhibition['status'])) ?></span></div>
           <label for="exhibition-title">Exhibition title</label><input id="exhibition-title" name="title" class="title-field" type="text" maxlength="100" required value="<?= Auth\escape($values['title']) ?>" aria-invalid="<?= isset($errors['title']) ? 'true' : 'false' ?>" aria-describedby="title-error">
@@ -188,10 +199,11 @@ $previewCover = Exhibitions\validCoverUrl(trim($values['cover'])) ? trim($values
           <p class="field-error" id="subject-error"><?= Auth\escape($errors['subject'] ?? '') ?></p>
           <label for="exhibition-cover">Cover image URL</label><input id="exhibition-cover" name="cover" type="url" maxlength="2048" value="<?= Auth\escape($values['cover']) ?>" placeholder="https://example.com/photo.jpg" aria-invalid="<?= isset($errors['cover']) ? 'true' : 'false' ?>" aria-describedby="cover-help cover-error">
           <p class="field-error" id="cover-error"><?= Auth\escape($errors['cover'] ?? '') ?></p>
-          <p class="editor-note" id="cover-help">Use an HTTP or HTTPS image URL you have permission to display. Preview changes are not saved until you choose Save Draft.</p>
+          <p class="editor-note" id="cover-help"><?= $exhibition['status'] === 'draft' ? 'Use an HTTP or HTTPS image URL you have permission to display. Preview changes are not saved until you choose Save Draft.' : 'Images are loaded from their saved HTTP or HTTPS URLs.' ?></p>
           </div>
           <div id="content-editor" hidden></div>
-          <?php if (!$editable): ?><p class="editor-note">Copy any unsaved edits before <a href="studio.php?id=<?= $id ?>">reopening Studio</a> to review the saved version.</p><?php endif; ?>
+          </fieldset>
+          <?php if (!$editable && $exhibition['status'] === 'draft'): ?><p class="editor-note">Copy any unsaved edits before <a href="studio.php?id=<?= $id ?>">reopening Studio</a> to review the saved version.</p><?php endif; ?>
           <noscript><p class="editor-note">Save Draft and metadata editing work without JavaScript. Chapter editing, live preview, and unsaved-change warnings require JavaScript. Existing content is preserved when saving metadata.</p></noscript>
         </form>
       </section>
@@ -200,7 +212,7 @@ $previewCover = Exhibitions\validCoverUrl(trim($values['cover'])) ? trim($values
           <div class="preview-title-row">
             <h2>Exhibition preview</h2><span class="preview-live"><i></i> LIVE</span>
           </div>
-          <p>A first glimpse of your idea as you edit.</p>
+          <p><?= $exhibition['status'] === 'draft' ? 'A first glimpse of your idea as you edit.' : 'A preview of your published story.' ?></p>
         </div>
         <div class="preview-stage">
           <div class="preview-art" id="preview-art"<?php if ($previewCover !== null): ?> style="<?= Auth\escape('background-image: url(' . json_encode($previewCover, JSON_THROW_ON_ERROR) . '), linear-gradient(135deg, #183f38, #326e5d); background-size: cover; background-position: center') ?>"<?php endif; ?>><span class="art-label">EXHIBIT / A CURATED JOURNEY</span>
@@ -214,7 +226,7 @@ $previewCover = Exhibitions\validCoverUrl(trim($values['cover'])) ? trim($values
             <p class="preview-end">Every discovery starts with a question. <span>✳</span></p>
           </div>
         </div>
-        <div class="preview-foot">Live preview · Save Draft to keep your changes</div>
+        <div class="preview-foot"><?= $exhibition['status'] === 'draft' ? 'Live preview · Save Draft to keep your changes' : 'Published exhibition · Read-only preview' ?></div>
       </aside>
     </div>
     <p class="studio-outro">Made for the endlessly curious. <span>✳</span> One thoughtful chapter at a time.</p>

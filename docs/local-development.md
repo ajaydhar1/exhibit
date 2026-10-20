@@ -112,7 +112,12 @@ mail worker with that environment fails rather than sending real mail.
 
 Sign in, create an exhibition, add/edit/reorder chapters and supported blocks,
 save, leave Studio and reopen it. Stop/start the environment to confirm records
-persist. Publishing/public database-backed viewing are not part of this setup.
+persist. For an exhibition you explicitly intend to make public, save and choose
+**Review & publish**, then confirm. Open its public link signed out to check the
+overview and chapters. Published exhibitions are read-only and cannot be
+unpublished in this MVP; do not publish existing private development drafts merely
+to test. Prefer the disposable environment for acceptance scenarios. See the
+[publishing acceptance checklist](../README.md#publishing-acceptance-checklist).
 
 ## Troubleshooting
 

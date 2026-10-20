@@ -98,13 +98,14 @@ test('Creation blocks blank titles/native validation failures, but allows native
   assert.equal(button.disabled, false);
 });
 
-function studioPage(state = 'saved', chapters = [], fetchImplementation = () => new Promise(() => {})) {
+function studioPage(state = 'saved', chapters = [], fetchImplementation = () => new Promise(() => {}), editable = true) {
   const ids = ['preview-toggle', 'studio-layout', 'studio-preview', 'studio-form', 'save-status',
     'save-draft', 'exhibition-title', 'exhibition-summary', 'exhibition-subject', 'exhibition-cover',
     'pv-title', 'pv-intro', 'pv-eyebrow', 'pv-category', 'preview-art', 'preview-orbit', 'project-title',
     'exhibition-subtitle', 'exhibition-description', 'exhibition-chapters_json', 'pv-blocks',
     'content-error', 'edit-details', 'details-editor', 'content-editor', 'editor-title', 'chapter-list', 'add-chapter',
-    'title-error', 'summary-error', 'subject-error', 'cover-error', 'subtitle-error', 'description-error', 'revision'];
+    'title-error', 'summary-error', 'subject-error', 'cover-error', 'subtitle-error', 'description-error', 'revision',
+    'publish-form', 'publish-exhibition', 'publish-revision'];
   const elements = Object.fromEntries(ids.map(id => [id, element()]));
   const baseline = {title: 'Saved title', summary: 'Saved intro', subject: 'History', cover: '',
     subtitle: '', description: '', chapters_json: JSON.stringify(chapters)};
@@ -114,6 +115,8 @@ function studioPage(state = 'saved', chapters = [], fetchImplementation = () => 
   elements['studio-form'].action = 'http://127.0.0.1/studio.php?id=1';
   elements['studio-form'].elements = {namedItem: name => elements[name]};
   elements.revision.value = 'a'.repeat(32);
+  elements['publish-revision'].value = elements.revision.value;
+  elements['save-draft'].disabled = !editable;
   elements['studio-form'].querySelectorAll = () => [
     ...Object.keys(baseline).map(name => elements[`exhibition-${name}`]),
     ...elements['content-editor'].querySelectorAll('input, textarea, select, button'),
@@ -473,4 +476,45 @@ test('Network errors, expired sessions and malformed success responses never dis
     window.listeners.beforeunload({preventDefault() { warned = true; }});
     assert.equal(warned, true);
   }
+});
+
+test('Publishing is gated on a clean confirmed save and uses the refreshed revision', async () => {
+  let finish;
+  const {elements} = studioPage('saved', [], () => new Promise(resolve => { finish = resolve; }));
+  const publish = elements['publish-exhibition'];
+  assert.equal(publish.disabled, false);
+  elements['exhibition-title'].value = 'New saved title';
+  elements['exhibition-title'].listeners.input();
+  assert.equal(publish.disabled, true);
+  let prevented = false;
+  elements['publish-form'].listeners.submit({preventDefault() { prevented = true; }});
+  assert.equal(prevented, true);
+  const saving = elements['studio-form'].listeners.submit({preventDefault() {}});
+  assert.equal(publish.disabled, true);
+  finish(savedResponse({values: {
+    title: 'New saved title', summary: 'Saved intro', subject: 'History', cover: '',
+    subtitle: '', description: '', chapters_json: '[]',
+  }}));
+  await saving;
+  assert.equal(publish.disabled, false);
+  assert.equal(elements['publish-revision'].value, 'b'.repeat(32));
+  prevented = false;
+  elements['publish-form'].listeners.submit({preventDefault() { prevented = true; }});
+  assert.equal(prevented, false);
+});
+
+test('Published Studio permits reading and preview but not editing or saving', () => {
+  const chapters = [{id: '8', title: 'Published chapter', era: '', intro: 'Opening', blocks: [
+    {id: '9', type: 'text', content: {heading: 'Published heading', body: 'Published body'}},
+  ]}];
+  const {elements, requests} = studioPage('saved', chapters, undefined, false);
+  assert.equal(elements['add-chapter'].disabled, true);
+  elements['chapter-list'].children[0].listeners.click();
+  assert.equal(studioInput(elements, 'Chapter title').readOnly, true);
+  assert.equal(studioInput(elements, 'Body').readOnly, true);
+  assert.ok(descendants(elements['content-editor']).filter(child => child.tag === 'button').every(button => button.disabled));
+  elements['studio-form'].listeners.submit({preventDefault() {}});
+  assert.equal(requests.length, 0);
+  elements['preview-toggle'].listeners.click();
+  assert.equal(elements['studio-preview'].hidden, true);
 });

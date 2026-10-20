@@ -97,7 +97,7 @@ function runAuthHttp(?PDO $db = null): int
         $fresh = new AuthHttpClient($base);
         $response = $fresh->request('sign-in.php');
         check(str_contains($response['headers'], 'HttpOnly') && str_contains($response['headers'], 'SameSite=Lax'), 'Session cookie flags missing.');
-        foreach (['my-exhibitions.php', 'new-exhibition.php', 'studio.php'] as $page) {
+        foreach (['my-exhibitions.php', 'new-exhibition.php', 'studio.php', 'publish.php'] as $page) {
             $response = $client->request($page);
             check($response['status'] === 303 && str_contains($response['headers'], '/sign-in.php'), 'Anonymous creator access allowed.');
             $response = $client->request($page, ['title' => 'Denied anonymous draft']);
@@ -107,6 +107,18 @@ function runAuthHttp(?PDO $db = null): int
         foreach (['index.php', 'explore.php', 'exhibition.php', 'view.php', 'chapter-2.php', 'chapter-3.php', 'chapter-4.php', 'chapter-5.php'] as $page) {
             check($client->request($page)['status'] === 200, 'Public exhibition page requires an account.');
             $count++;
+        }
+        foreach (['exhibition.php?id=0', 'view.php?chapter=1', 'view.php?id[]=1&chapter=1'] as $page) {
+            $response = $client->request($page);
+            check($response['status'] === 404 && $response['body'] === 'Exhibition not found.', 'Malformed public request did not return a safe 404.');
+        }
+        if ($db === null) {
+            foreach (['exhibition.php?id=1', 'view.php?id=1&chapter=1'] as $page) {
+                $response = $client->request($page);
+                check($response['status'] === 503 && str_contains($response['headers'], 'Retry-After:')
+                    && !str_contains($response['body'], 'Before the Web')
+                    && !str_contains($response['body'], 'DATABASE_URL'), 'Database outage leaked details or fell back to the sample.');
+            }
         }
         check($client->request('logout.php')['status'] === 405, 'GET logout changed session.');
         check($client->request('logout.php', ['csrf' => 'incorrect'])['status'] === 403, 'Logout bypassed CSRF.');
@@ -124,7 +136,7 @@ function runAuthHttp(?PDO $db = null): int
                 'password' => $password, 'confirm_password' => $password,
             ]);
             check($response['status'] === 303 && $client->cookie !== $oldCookie, 'Registration failed or session not rotated.');
-            foreach (['my-exhibitions.php', 'new-exhibition.php', 'studio.php'] as $page) {
+            foreach (['my-exhibitions.php', 'new-exhibition.php', 'studio.php', 'publish.php'] as $page) {
                 $response = $client->request($page);
                 check($response['status'] === 303 && str_contains($response['headers'], '/verify-email.php'), 'Unverified creator accessed workspace.');
                 $response = $client->request($page, ['csrf' => $client->csrf('verify-email.php'), 'title' => 'Denied unverified draft']);
@@ -168,6 +180,8 @@ function runAuthHttp(?PDO $db = null): int
                 'New authenticated session could not reopen saved exhibition.');
             check(studioSavedContent($reopened) === $savedContent,
                 'A new sign-in session changed saved chapter/block IDs, values or ordering.');
+            $count++;
+            runPublicationHttp($client, $db, $base, $draftId);
             $count++;
             $csrf = $duplicate->csrf('forgot-password.php');
             check($duplicate->request('forgot-password.php', ['csrf' => $csrf, 'email' => $email])['status'] === 303, 'Recovery request failed.');

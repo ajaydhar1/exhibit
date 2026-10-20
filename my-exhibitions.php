@@ -42,7 +42,7 @@ try {
     </div>
   </header>
   <main class="workspace shell">
-    <div class="prototype-banner" role="note"><span class="banner-indicator"></span><strong>Your private workspace</strong><span>Drafts are saved to your account. Edit their details in Studio; publishing is not available yet.</span></div>
+    <div class="prototype-banner" role="note"><span class="banner-indicator"></span><strong>Your creator workspace</strong><span>Drafts stay private. Edit and save in Studio, then publish when your exhibition is ready.</span></div>
     <section class="workspace-intro" aria-labelledby="workspace-title">
       <div>
         <p class="eyebrow"><span class="eyebrow-line"></span> YOUR CREATIVE SPACE / 001</p>
@@ -80,6 +80,7 @@ try {
               <p><?= Auth\escape($item['summary'] ?? 'No introduction yet.') ?></p>
               <div class="workspace-card-bottom"><span><?= (int) $item['chapter_count'] ?> <?= (int) $item['chapter_count'] === 1 ? 'chapter' : 'chapters' ?></span>
                 <a href="studio.php?id=<?= (int) $item['id'] ?>">Open Studio <span aria-hidden="true">↗</span></a>
+                <?php if ($item['status'] === 'published'): ?><a href="exhibition.php?id=<?= (int) $item['id'] ?>">View public exhibition <span aria-hidden="true">↗</span></a><?php endif; ?>
               </div>
             </div>
           </article>
@@ -89,7 +90,7 @@ try {
     <aside class="studio-note"><span class="studio-note-icon" aria-hidden="true">✳</span>
       <div>
         <h2>Thoughtfully made, chapter by chapter.</h2>
-        <p>Your exhibition ideas are saved. Open a draft in Studio to edit its details; chapter editing and publishing will follow in a later milestone.</p>
+        <p>Open a draft in Studio to shape its chapters and content. Published exhibitions are public and read-only.</p>
       </div>
     </aside>
   </main>

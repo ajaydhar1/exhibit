@@ -1,7 +1,7 @@
 # Exhibit MVP
 
 The Exhibit digital exhibition experience, with PostgreSQL-backed creator
-authentication and creator-owned persistent exhibition drafts.
+authentication, creator-owned persistent drafts, publishing, and public exhibition viewing.
 
 ## Local development (Ampps)
 
@@ -30,17 +30,19 @@ one-time approved setup, start/stop behavior, isolation, and private logs.
 The VS Code PHP Server on port 3000 does not load this configuration, and the
 restricted prior acceptance server on port 8091 is not the development app.
 
-All navigation uses regular `.php` links. No URL rewriting is required. Public
-exhibition pages remain database-independent and accessible without signing in.
+All navigation uses regular `.php` links. No URL rewriting is required. The authored
+sample remains database-independent. Published creator exhibitions load from PostgreSQL
+and are accessible without signing in.
 Account operations require the environment and reviewed migration described in
 [Authentication setup](docs/authentication.md).
 
 ## Pages
 
 - `index.php` — homepage
-- `exhibition.php` — exhibition overview
-- `view.php` — first chapter
-- `chapter-2.php` through `chapter-5.php` — remaining chapters
+- `exhibition.php` — authored sample overview; `?id=ID` opens a published exhibition
+- `view.php` — first sample chapter; `?id=ID&chapter=CHAPTER_ID` opens a published chapter
+- `chapter-2.php` through `chapter-5.php` — remaining sample chapters
+- `publish.php?id=ID&revision=REVISION` — private saved-version confirmation; publishing requires POST
 
 ## Render (Docker)
 
@@ -49,7 +51,7 @@ Account operations require the environment and reviewed migration described in
 3. Keep the Dockerfile path as `./Dockerfile`; no build or start commands are needed.
 4. Test homepage, overview and all five chapters once deployed.
 
-The image listens on port 10000, with `PORT=10000` as its documented deployment setting. If the hosting port requirement changes, adjust the Apache config accordingly. This is a public demo, not yet an editable multi-user MVP.
+The image listens on port 10000, with `PORT=10000` as its documented deployment setting. If the hosting port requirement changes, adjust the Apache config accordingly. Creator workflows and database-backed public viewing require the configured PostgreSQL environment; application startup never runs migrations.
 
 The content is prototype material; fact-check and confirm image rights before any public launch.
 
@@ -57,7 +59,7 @@ The content is prototype material; fact-check and confirm image rights before an
 
 Open `my-exhibitions.php` after signing in and verifying your email. It lists only
 your saved exhibitions, newest-updated first, or an empty state with a creation
-link. Cards show persisted metadata, draft status, and a derived chapter count.
+link. Cards show persisted metadata, publication status, and a derived chapter count.
 The creator screens remain private, `no-store`, and `noindex`.
 
 ## Exhibition Studio editing and saving (Milestone 2)
@@ -107,8 +109,109 @@ Any failure rolls back metadata, content, ordering, and revision together.
 A stale or missing revision returns 409 rather than overwriting a newer save.
 Copy unsaved edits and reopen Studio to review the latest values; there is no
 force-overwrite control. Published exhibitions cannot be saved through this action.
-No schema changes or migrations are required. Publishing and database-backed
-public viewing remain unavailable; the preview is private and local to Studio.
+No schema changes or migrations are required. The live preview remains private
+and local to Studio until the saved exhibition is explicitly published.
+
+## Publishing and public viewing (Milestone 3)
+
+Save your draft, then choose **Review & publish** in Studio. JavaScript disables
+publishing while changes are unsaved, saving is active, or saving has failed.
+A successful in-place save refreshes both the editor and publication revision.
+The confirmation page explicitly describes what will become public and warns that
+publication is read-only and cannot be undone in this MVP. It also works without
+JavaScript: only the last saved version is published, never unsaved form values.
+
+Publishing requires a valid saved title and at least one chapter with meaningful
+opening narrative, text/artifact heading or body, or a valid figure URL. Whitespace
+and invisible formatting characters alone do not count. Optional metadata, cover,
+captions and credits are not required; remote image availability is not checked.
+The service validates saved content before publication. Submitted replacement
+metadata/content is ignored by the publish action.
+
+The publish POST requires a verified creator, ownership, session CSRF and the
+reviewed saved revision. It locks the owner-scoped exhibition row, checks the
+revision, then sets the existing status and publication timestamp atomically.
+Concurrent Studio saves use the same parent lock. Stale/missing revisions return
+409; insufficient content returns 422; invalid CSRF returns 403. Failures roll
+back and return a safe error, never a success fallback. A duplicate authenticated
+publish is idempotent and preserves the original publication timestamp.
+
+Success redirects to `exhibition.php?id=ID`. **Begin exhibition** and chapter
+links open `view.php?id=ID&chapter=CHAPTER_ID`, with saved chapter/block ordering,
+dynamic progress, and previous/next navigation. The existing overview/viewer
+typography, layout and responsive styles are reused. Text remains escaped plain
+text with line breaks; figures include alt text, captions and credits. Images
+are fetched by the visitor's browser with no-referrer, never by the backend.
+Only show images you have permission to publish.
+
+Public queries filter publication state in SQL and return no creator/account
+data. Drafts, nonexistent exhibitions, and foreign/invalid chapter IDs return
+the same 404, including to the owner through a public URL. Public viewing does
+not start a session and uses no-store responses; database failures return 503.
+Malformed dynamic URLs never fall back to the sample.
+
+Published exhibitions are read-only in Studio, with public links there and on
+the dashboard. Unpublishing, edits/revisions after publishing, slug editing,
+uploads, and automatic Explore discovery are outside this milestone. Existing
+no-parameter sample routes and their five chapters remain functional without
+PostgreSQL. No new migration is needed.
+
+### Publishing acceptance checklist
+
+Use a disposable test environment or an explicitly approved exhibition: publishing
+cannot be reversed through the MVP interface.
+
+1. Create an exhibition, add two chapters and text/artifact/figure blocks, reorder
+   them, and save. Confirm dirty/saving/saved feedback and that unsaved edits
+   disable **Review & publish**.
+2. Refresh, reopen from the dashboard, and sign out/in. Confirm exact saved
+   metadata, chapter/block values and order.
+3. In a signed-out browser, try the draft overview and a known chapter URL.
+   Both must return 404 without leaking content.
+4. Review and confirm publication. Check the public overview, every chapter,
+   text line breaks, images/alt/captions/credits, progress and navigation.
+5. Reload the public links signed out. Check desktop and mobile widths, long
+   titles/text and missing/broken optional images.
+6. Reopen Studio: metadata and chapter/block mutation controls and Save Draft
+   must be disabled. The dashboard must show Published and a public-view link.
+7. Confirm the existing sample's overview and all five chapters still work.
+   Automated disposable tests cover CSRF/ownership failures, empty content,
+   stale/duplicate requests, injected database failure and published-save rejection.
+
+### Milestone 3 validation (2026-10-20)
+
+The publishing implementation passed 19 exhibition unit groups, 21 Node UI tests,
+57 offline database/architecture checks, 10 authentication unit groups, 10 offline
+mail groups, and 19 database-independent HTTP scenarios. PHP lint and JavaScript
+syntax checks also passed. The offline HTTP suite confirms the sample remains
+available without PostgreSQL and database-backed public URLs report a safe 503
+when the database is unavailable.
+
+A fresh session-local PostgreSQL 18.6 cluster, bound only to loopback on a
+separate port, hosted two disposable `exhibit_test_*` databases. Only the existing
+checked-in migrations initialized them. The database-backed suite passed eight
+authentication service groups, Studio/draft/publication persistence groups, the
+complete creation/edit/save/reopen/new-sign-in/publish/anonymous-view HTTP
+workflow, and 25 authentication HTTP scenarios. It verified optional-metadata-free
+publication, exact saved ordering, escaped content and figure metadata, draft and
+cross-exhibition privacy, CSRF/ownership/revision checks, idempotence, injected
+publish failure rollback, and published-save rejection.
+
+A separate disposable browser creator completed creation, Studio text/artifact/
+figure editing, saving, refresh/reopen, confirmation, publication, public overview,
+chapter navigation and read-only Studio verification. Browser checks at 1440px
+and 390px CSS widths found no horizontal overflow for ordinary and maximum-length
+unbroken content, with optional cover absent, valid and broken image URLs. Loaded
+figures, captions/credits and literal HTML-like text were checked. No existing
+development draft or production record was used; no deployment or push occurred.
+Both disposable databases were dropped and their temporary servers stopped after
+verification.
+
+Manual acceptance was reported successful on 2026-10-20: the creator made
+*A Little Museum of Curiosity*, added a chapter and text content, saved the draft,
+published it, and viewed the public chapter. The creator confirmed that the
+content rendered correctly. This acceptance was user-performed; no additional
+live records were changed during commit preparation.
 
 
 ## Create Exhibition
@@ -137,9 +240,9 @@ to open the dashboard, new-exhibition screen, and Studio. Logout is POST-only.
 Open `explore.php` to visit the new discovery screen. It links to the one fully authored exhibition, **The Birth of the Internet**. Three additional cards are explicitly labeled *concept previews* and do not imply that those exhibitions are published.
 
 Top navigation connects the homepage, Explore, guarded creator workspace, and
-sign-in screens. Creator drafts are saved privately; public pages still display
-only the authored sample exhibition. Publishing and public database-backed viewing
-are not implemented.
+sign-in screens. Creator drafts are saved privately. Published creator exhibitions
+are available through direct public links; Explore still lists only the authored
+sample and the clearly labeled concept previews, not creator publications.
 
 
 ## Verification and account recovery
@@ -200,7 +303,12 @@ CSRF, validation, database-error input retention, stale/published-save rejection
 refresh/reopen, a new sign-in session, child-ID isolation, stable-ID chapter/block
 reordering with exact saved-tree comparisons, preservation of unexposed fields,
 deletion/cascades without affecting same-owner or foreign-owner exhibitions, and injected
-mid-content-save failure rollback. It requires an **empty disposable
+mid-content-save failure rollback. It also exercises publication readiness for
+narrative/text/artifact/figure-only exhibitions without optional metadata,
+atomic/idempotent publication, draft privacy on public routes, stale/foreign/CSRF
+rejection, injected publish rollback, and the complete saved-session-to-publish-to-
+anonymous-view HTTP workflow with exact ordering and read-only Studio checks.
+It requires an **empty disposable
 loopback `exhibit_test_SUFFIX` database**, installs the test schema using both
 existing migrations, and removes it afterward. It must not run while migration or
 database-writing approval is withheld, or against development/production.

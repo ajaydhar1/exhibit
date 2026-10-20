@@ -24,6 +24,24 @@ final class ValidationError extends RuntimeException
 
 final class SaveConflict extends RuntimeException {}
 
+function publicationReady(array $exhibition): void
+{
+    studioText($exhibition['title'], 100, 'title', true);
+    foreach ($exhibition['chapters'] as $chapter) {
+        $text = $chapter['intro'];
+        foreach ($chapter['blocks'] as $block) {
+            if ($block['type'] === 'figure' && validCoverUrl($block['content']['url'] ?? '')) {
+                return;
+            }
+            $text .= ($block['content']['heading'] ?? '') . ($block['content']['body'] ?? '');
+        }
+        if (preg_match('/[^\s\p{Z}\p{Cf}]/u', $text) === 1) {
+            return;
+        }
+    }
+    throw new ValidationError(['content' => 'Add and save at least one chapter with an opening narrative, text, artifact content, or an image before publishing.']);
+}
+
 function revision(array $exhibition): string
 {
     return md5($exhibition['updated_at']);
@@ -124,6 +142,11 @@ function validateContent(mixed $json): array
     } catch (\JsonException) {
         throw new ValidationError(['content' => 'Content could not be read. Your edits have not been saved.']);
     }
+    return validateChapterList($chapters);
+}
+
+function validateChapterList(mixed $chapters): array
+{
     if (!is_array($chapters) || !array_is_list($chapters)) {
         throw new ValidationError(['content' => 'Content must be an ordered list of chapters.']);
     }
@@ -335,12 +358,7 @@ final class Service
     public function findOwned(int $exhibitionId, int $ownerId, bool $withContent = false): ?array
     {
         // A single statement gives metadata, revision and ordered content the same snapshot.
-        $contentSql = $withContent ? ", COALESCE((SELECT jsonb_agg(jsonb_build_object(
-            'id', c.id::text, 'title', c.title, 'era', COALESCE(c.era, ''), 'intro', COALESCE(c.intro, ''),
-            'blocks', COALESCE((SELECT jsonb_agg(jsonb_build_object(
-                'id', b.id::text, 'type', b.type, 'content', b.content) ORDER BY b.position)
-                FROM public.content_blocks b WHERE b.chapter_id = c.id), '[]'::jsonb)) ORDER BY c.position)
-            FROM public.chapters c WHERE c.exhibition_id = exhibitions.id), '[]'::jsonb) AS chapters" : '';
+        $contentSql = $withContent ? $this->contentSql() : '';
         $statement = $this->db->prepare(
             'SELECT id, title, subtitle, summary, description, category, cover, status, created_at, updated_at'
             . $contentSql . ' FROM public.exhibitions WHERE id = ? AND owner_id = ?'
@@ -351,6 +369,73 @@ final class Service
             $row['chapters'] = json_decode($row['chapters'], true, 512, JSON_THROW_ON_ERROR);
         }
         return $row === false ? null : $this->decodeCover($row);
+    }
+
+    private function contentSql(): string
+    {
+        return ", COALESCE((SELECT jsonb_agg(jsonb_build_object(
+            'id', c.id::text, 'title', c.title, 'era', COALESCE(c.era, ''), 'intro', COALESCE(c.intro, ''),
+            'blocks', COALESCE((SELECT jsonb_agg(jsonb_build_object(
+                'id', b.id::text, 'type', b.type, 'content', b.content) ORDER BY b.position)
+                FROM public.content_blocks b WHERE b.chapter_id = c.id), '[]'::jsonb)) ORDER BY c.position)
+            FROM public.chapters c WHERE c.exhibition_id = exhibitions.id), '[]'::jsonb) AS chapters";
+    }
+
+    public function findPublished(int $exhibitionId): ?array
+    {
+        $statement = $this->db->prepare(
+            'SELECT id, title, subtitle, summary, description, category, cover'
+            . $this->contentSql() . " FROM public.exhibitions WHERE id = ? AND status = 'published' AND published_at IS NOT NULL"
+        );
+        $statement->execute([$exhibitionId]);
+        $row = $statement->fetch();
+        if ($row !== false) {
+            // Validate persisted block types and image URLs before exposing visitor markup.
+            validateChapterList(json_decode($row['chapters'], false, 512, JSON_THROW_ON_ERROR));
+            $row['chapters'] = json_decode($row['chapters'], true, 512, JSON_THROW_ON_ERROR);
+        }
+        return $row === false ? null : $this->decodeCover($row);
+    }
+
+    public function publish(int $exhibitionId, int $ownerId, mixed $expectedRevision): void
+    {
+        if (!is_string($expectedRevision) || preg_match('/\A[a-f0-9]{32}\z/', $expectedRevision) !== 1) {
+            throw new SaveConflict('The saved version is missing or invalid. Reopen Studio before publishing.');
+        }
+        $this->db->beginTransaction();
+        try {
+            $lock = $this->db->prepare('SELECT status FROM public.exhibitions WHERE id = ? AND owner_id = ? FOR UPDATE');
+            $lock->execute([$exhibitionId, $ownerId]);
+            $status = $lock->fetchColumn();
+            if ($status === false) {
+                throw new SaveConflict('This exhibition is unavailable. Reopen Studio before publishing.');
+            }
+            if ($status === 'published') {
+                $this->db->commit();
+                return;
+            }
+            $saved = $this->findOwned($exhibitionId, $ownerId, true);
+            if ($saved === null || !hash_equals(revision($saved), $expectedRevision)) {
+                throw new SaveConflict('This exhibition changed since you opened it. Reopen Studio and review the saved version before publishing.');
+            }
+            validateChapterList(json_decode(json_encode($saved['chapters'], JSON_THROW_ON_ERROR), false, 512, JSON_THROW_ON_ERROR));
+            publicationReady($saved);
+            $statement = $this->db->prepare(
+                "UPDATE public.exhibitions SET status = 'published', published_at = CURRENT_TIMESTAMP
+                 WHERE id = ? AND owner_id = ? AND status = 'draft' AND md5(updated_at::text) = ?
+                 RETURNING id"
+            );
+            $statement->execute([$exhibitionId, $ownerId, $expectedRevision]);
+            if ($statement->fetchColumn() === false) {
+                throw new SaveConflict('This exhibition changed. Reopen Studio before publishing.');
+            }
+            $this->db->commit();
+        } catch (Throwable $error) {
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+            throw $error;
+        }
     }
 
     private function decodeCover(array $row): array

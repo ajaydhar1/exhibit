@@ -294,15 +294,19 @@ $tests['Private directories, SQL, secrets, and configuration are denied by Apach
         check(str_contains($config, 'RedirectMatch 403 "(?i)(?:^|/)\."'), 'Hidden directories must be denied, not just hidden filenames.');
     }
 };
-$tests['No automatic migrations; database access restricted to account and creator screens'] = static function (): void {
+$tests['No automatic migrations; public database access restricted to published exhibition routes'] = static function (): void {
     $root = dirname(__DIR__);
     foreach (glob($root . '/*.php') as $page) {
         $source = file_get_contents($page);
         check(!preg_match('/(?:database[\/\\\\]|new\s+PDO\b|installInitialSchema\s*\()/i', $source), 'Screen must not migrate or connect directly.');
         if (!in_array(basename($page), ['register.php', 'sign-in.php', 'forgot-password.php', 'reset-password.php',
-            'verify-email.php', 'logout.php', 'my-exhibitions.php', 'new-exhibition.php', 'studio.php'], true)) {
+            'verify-email.php', 'logout.php', 'my-exhibitions.php', 'new-exhibition.php', 'studio.php', 'publish.php',
+            'exhibition.php', 'view.php'], true)) {
             check(!str_contains($source, '/backend/'), 'Public content must not require authentication or database access.');
         }
+    }
+    foreach (['exhibition.php', 'view.php'] as $page) {
+        check(str_contains(file_get_contents($root . '/' . $page), "/backend/public-exhibition.php"), 'Public exhibition must use the published-only controller.');
     }
     $docker = file_get_contents($root . '/Dockerfile');
     check(str_contains($docker, 'docker-php-ext-install pdo_pgsql'), 'Docker PostgreSQL extension missing.');

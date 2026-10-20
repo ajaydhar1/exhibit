@@ -235,6 +235,7 @@ function studioConnection(array &$events, array $responses): PDO
                     return true;
                 }
                 public function fetchColumn(int $column = 0): mixed { return $this->response; }
+                public function fetch(int $mode = PDO::FETCH_DEFAULT, int $cursorOrientation = PDO::FETCH_ORI_NEXT, int $cursorOffset = 0): mixed { return $this->response; }
                 public function fetchAll(int $mode = PDO::FETCH_DEFAULT, mixed ...$args): array { return $this->response; }
             };
         }
@@ -369,6 +370,110 @@ $tests['Studio ordered reads use one owner-scoped snapshot and decode saved cont
     check($saved['chapters'] === $fixture && count($calls) === 1 && $calls[0][1] === [42, 7]
         && str_contains($calls[0][0], 'ORDER BY c.position') && str_contains($calls[0][0], 'ORDER BY b.position'),
         'Studio loading lost ordering, ownership or snapshot consistency.');
+};
+
+$tests['Publication requires saved title and meaningful chapter content, not optional metadata'] = static function (): void {
+    $chapter = ['title' => 'Chapter', 'era' => '', 'intro' => '', 'blocks' => []];
+    foreach ([[], [$chapter], [array_replace($chapter, ['intro' => " \n\t\u{00a0}\u{200b}"])]] as $chapters) {
+        try {
+            Exhibit\Exhibitions\publicationReady(['title' => 'Title', 'chapters' => $chapters]);
+            throw new LogicException('Empty exhibition accepted.');
+        } catch (ValidationError $error) {
+            check(isset($error->errors['content']), 'Readiness did not report missing content.');
+        }
+    }
+    foreach ([
+        array_replace($chapter, ['intro' => 'Opening']),
+        array_replace($chapter, ['blocks' => [['type' => 'text', 'content' => ['body' => 'Narrative']]]]),
+        array_replace($chapter, ['blocks' => [['type' => 'artifact', 'content' => ['heading' => 'Artifact']]]]),
+        array_replace($chapter, ['blocks' => [['type' => 'figure', 'content' => ['url' => 'https://example.test/image.jpg']]]]),
+    ] as $content) {
+        Exhibit\Exhibitions\publicationReady(['title' => 'Title', 'chapters' => [$content]]);
+    }
+    try {
+        Exhibit\Exhibitions\publicationReady(['title' => '', 'chapters' => [array_replace($chapter, ['intro' => 'Opening'])]]);
+        throw new LogicException('Empty title accepted.');
+    } catch (ValidationError $error) {
+        check(isset($error->errors['title']), 'Readiness lost title validation.');
+    }
+};
+
+$tests['Public reads enforce publication in SQL with ordered content and no account data'] = static function (): void {
+    $calls = [];
+    $row = ['id' => '42', 'title' => 'Public title', 'cover' => null, 'chapters' => json_encode(contentFixture())];
+    $result = (new Service(exhibitionConnection($calls, [$row])))->findPublished(42);
+    check($result['chapters'] === contentFixture() && $calls[0][1] === [42], 'Public read lost content or binding.');
+    $sql = $calls[0][0];
+    check(str_contains($sql, "status = 'published' AND published_at IS NOT NULL")
+        && str_contains($sql, 'ORDER BY c.position') && str_contains($sql, 'ORDER BY b.position')
+        && !str_contains($sql, 'owner_id') && !str_contains($sql, 'users'), 'Public query lost privacy or ordering.');
+    $calls = [];
+    check((new Service(exhibitionConnection($calls, [false])))->findPublished(42) === null, 'Hidden publication returned data.');
+    $invalid = contentFixture();
+    $invalid[0]['blocks'][0] = ['type' => 'figure', 'content' => ['url' => 'javascript:alert(1)']];
+    $calls = [];
+    try {
+        (new Service(exhibitionConnection($calls, [array_replace($row, ['chapters' => json_encode($invalid)])])))->findPublished(42);
+        throw new LogicException('Unsafe persisted figure accepted.');
+    } catch (ValidationError) {}
+};
+
+$tests['Publishing locks the owner row, validates the saved revision and changes publication state only'] = static function (): void {
+    $row = ['id' => '42', 'title' => 'Title', 'cover' => null, 'updated_at' => 'saved timestamp',
+        'chapters' => json_encode(contentFixture())];
+    $revision = md5($row['updated_at']);
+    $events = [];
+    (new Service(studioConnection($events, ['draft', $row, '42'])))->publish(42, 7, $revision);
+    check($events[0] === ['begin'] && end($events) === ['commit'], 'Publishing is not transactional.');
+    check(str_contains($events[1][0], 'owner_id = ? FOR UPDATE') && $events[1][1] === [42, 7], 'Publish lock not owner scoped.');
+    check(str_contains($events[3][0], "status = 'published', published_at = CURRENT_TIMESTAMP")
+        && str_contains($events[3][0], "status = 'draft' AND md5(updated_at::text) = ?")
+        && $events[3][1] === [42, 7, $revision] && count($events) === 5, 'Publish changed content or lost final revision predicate.');
+    $events = [];
+    (new Service(studioConnection($events, ['published'])))->publish(42, 7, $revision);
+    check(count($events) === 3 && end($events) === ['commit'], 'Duplicate publish changed timestamp or content.');
+    foreach ([null, [], '', 'invalid'] as $version) {
+        $events = [];
+        try {
+            (new Service(studioConnection($events, [])))->publish(42, 7, $version);
+            throw new LogicException('Malformed publication revision accepted.');
+        } catch (Exhibit\Exhibitions\SaveConflict) {
+            check($events === [], 'Malformed revision reached SQL.');
+        }
+    }
+    foreach ([
+        [false], ['draft', array_replace($row, ['updated_at' => 'newer'])],
+        ['draft', array_replace($row, ['chapters' => '[]'])],
+        ['draft', $row, new PDOException('test-only publish failure')],
+        ['draft', $row, false],
+    ] as $responses) {
+        $events = [];
+        try {
+            (new Service(studioConnection($events, $responses)))->publish(42, 7, $revision);
+            throw new LogicException('Invalid publication reported success.');
+        } catch (Exhibit\Exhibitions\SaveConflict|ValidationError|PDOException) {
+            check(end($events) === ['rollback'] && !in_array(['commit'], $events, true), 'Publication failed without rollback.');
+        }
+    }
+};
+
+$tests['Persisted Unicode content is not rejected by the request JSON byte limit after encoding'] = static function (): void {
+    $chapters = [['id' => '11', 'title' => 'Unicode chapter', 'era' => '', 'intro' => '', 'blocks' => []]];
+    for ($index = 1; $index <= 100; $index++) {
+        $chapters[0]['blocks'][] = ['id' => (string) $index, 'type' => 'text',
+            'content' => ['heading' => '', 'body' => str_repeat("\xc3\xa9", 1900)]];
+    }
+    $request = json_encode($chapters, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+    $stored = json_encode($chapters, JSON_THROW_ON_ERROR);
+    check(strlen($request) < 1048576 && strlen($stored) > 1048576, 'Byte expansion fixture is not exercising the boundary.');
+    Exhibit\Exhibitions\validateContent($request);
+    $calls = [];
+    $row = ['id' => '42', 'title' => 'Title', 'cover' => null, 'updated_at' => 'timestamp', 'chapters' => $stored];
+    check((new Service(exhibitionConnection($calls, [$row])))->findPublished(42)['chapters'] === $chapters,
+        'Valid saved Unicode content could not be viewed.');
+    $events = [];
+    (new Service(studioConnection($events, ['draft', $row, '42'])))->publish(42, 7, md5('timestamp'));
+    check(end($events) === ['commit'], 'Valid saved Unicode content could not be published.');
 };
 
 $failed = 0;

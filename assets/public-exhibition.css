@@ -1,0 +1,22 @@
+.public-exhibition{overflow-wrap:anywhere}
+.public-exhibition .overview-title-area>div,.public-exhibition .viewer-heading-grid>div,
+.public-exhibition .chapter-details,.public-exhibition .viewer-ending-actions{min-width:0}
+.public-exhibition .public-prose{white-space:pre-line}
+.public-exhibition .public-prose a{white-space:normal}
+.public-exhibition .public-cover{height:auto;min-height:0;background:#e0e6dc}
+.public-exhibition .public-cover:before{content:none}
+.public-exhibition .public-cover img{display:block;width:100%;max-height:640px;object-fit:contain}
+.public-exhibition .public-text,.public-exhibition .public-artifact{padding:50px 0}
+.public-exhibition .viewer-prose{max-width:760px;margin:0 auto}
+.public-exhibition .viewer-prose p{max-width:none}
+.public-exhibition .public-figure{margin:48px auto}
+.public-exhibition .public-figure img{display:block;max-width:100%;height:auto;max-height:85vh;object-fit:contain;margin:0 auto}
+.public-exhibition figcaption{max-width:760px;margin:18px auto 0;color:var(--muted);font-size:14px;line-height:1.8}
+.public-exhibition figcaption small{display:block;margin-top:8px}
+.public-exhibition .viewer-progress-meta{flex-wrap:wrap}
+.public-exhibition .viewer-ending-actions a{white-space:normal}
+@media(max-width:600px){
+  .public-exhibition .public-text,.public-exhibition .public-artifact{padding:30px 0}
+  .public-exhibition .viewer-heading-grid h1{font-size:clamp(42px,12vw,70px);letter-spacing:-1px}
+  .public-exhibition .public-figure{margin:30px auto}
+}

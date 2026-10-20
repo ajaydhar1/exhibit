@@ -6,9 +6,10 @@ This document records the original PostgreSQL foundation milestone and its
 initialization procedure. Authentication now uses this foundation; see
 [Authentication setup](authentication.md) for the new approval-gated migration,
 account/session behavior, encrypted email queue, and current test commands.
-Public content remains database-independent. Draft creation now persists exhibition
+The authored sample remains database-independent. Draft creation persists exhibition
 metadata, the dashboard lists creator-owned records, and Studio loads and saves
-an owned draft's metadata and ordered chapters/content. Publishing is still not implemented.
+an owned draft's metadata and ordered chapters/content. Publishing now exposes a
+saved exhibition through published-only public overview/chapter queries.
 Sections below describing disconnected screens or
 exactly four tables refer to the original foundation, not the authentication
 extension.
@@ -42,6 +43,30 @@ Content saves also update ordered chapter/block records in the same transaction
 as the parent metadata/revision. No migrations, slug changes, or publication
 changes are involved.
 Database errors produce a sanitized log and 503, not an empty/success fallback.
+
+### Publication and public reads
+
+No additional migration or index is required. Publishing uses the existing primary
+key, `status`, `published_at`, publication-state constraint and timestamp trigger.
+The service locks the owned exhibition row with `FOR UPDATE`, validates the saved
+revision/title/content, and atomically sets status and publication time. Saves
+use the same parent lock. Publication changes neither child IDs/content/order nor
+ownership. Duplicate authenticated requests preserve the first publication time.
+Published exhibitions remain immutable through the Studio save action.
+
+Public overview/chapter loading selects only `status = 'published'` with a non-null
+publication timestamp, returning visitor metadata and the ordered content tree in
+one statement. It never returns owner/account information or starts a session.
+Chapter lookup stays within that exhibition's tree. Missing, draft and invalid
+chapter requests return a uniform 404; service failures return 503. The original
+sample route without parameters does not connect to PostgreSQL.
+
+Public URLs use existing IDs; generated slugs are unchanged. Readiness requires a
+saved valid title and a chapter with narrative, text/artifact content or a valid
+figure, not optional metadata/cover. Saved content is structurally validated
+without reapplying the incoming 1 MiB JSON limit: encoding/assigned IDs can expand
+a valid request's persisted representation. See the
+[publishing workflow and acceptance checklist](../README.md#publishing-and-public-viewing-milestone-3).
 
 `tests/exhibitions.php` is connection-free. Actual persistence/ownership/HTTP
 workflow coverage is included in `tests/auth-postgres.php --run` through

@@ -97,6 +97,7 @@ function runExhibitionPostgres(PDO $db): void
     }
     check(count($service->listOwned($owner)) === $before, 'Saving added exhibitions.');
     runStudioPostgres($db, $owner, $other);
+    runPublicationPostgres($db, $owner, $other);
     echo "PASS: PostgreSQL draft persistence, updates, stale/foreign/published save rejection and child counts.\n";
 }
 
@@ -333,6 +334,7 @@ function runExhibitionHttp(AuthHttpClient $client, PDO $db, string $base): int
     $stale = $client->request($page, ['title' => 'Stale edit'] + $edit);
     check($stale['status'] === 409 && str_contains($stale['body'], 'Stale edit')
         && str_contains($stale['body'], 'id="save-draft" class="studio-btn" disabled')
+        && !str_contains($stale['body'], '<fieldset class="studio-fields" disabled>')
         && str_contains($stale['body'], 'name="revision" value="' . $version . '"'), 'Stale save overwrote newer edits or allowed blind retry.');
     check($client->request($page, ['revision' => []] + $edit)['status'] === 409, 'Malformed version accepted.');
     $current = $client->request($page);
@@ -374,6 +376,8 @@ function runExhibitionHttp(AuthHttpClient $client, PDO $db, string $base): int
     $content = [['title' => 'HTTP chapter', 'era' => 'HTTP era', 'intro' => 'HTTP opening', 'blocks' => [
         ['type' => 'text', 'content' => ['heading' => 'HTTP heading', 'body' => '<script>literal text</script>']],
         ['type' => 'artifact', 'content' => ['heading' => 'HTTP artifact', 'body' => 'Context']],
+        ['type' => 'figure', 'content' => ['url' => $base . '/assets/favicon.svg', 'alt' => 'Exhibit image',
+            'caption' => 'Figure caption <script>literal</script>', 'credit' => 'Exhibit credit']],
     ]], ['title' => 'HTTP second chapter', 'era' => '', 'intro' => '', 'blocks' => []]];
     $contentEdit = ['revision' => $versionMatch[1], 'chapters_json' => json_encode($content)] + $edit;
     $badContent = $client->request($page, ['chapters_json' => '{}'] + $contentEdit);
@@ -399,7 +403,7 @@ function runExhibitionHttp(AuthHttpClient $client, PDO $db, string $base): int
     $content = array_reverse($persisted['chapters']);
     $content[1]['blocks'] = array_reverse($content[1]['blocks']);
     $content[1]['intro'] = 'Edited HTTP opening';
-    $content[1]['blocks'][0]['content']['body'] = 'Edited HTTP artifact context';
+    $content[1]['blocks'][1]['content']['body'] = 'Edited HTTP artifact context';
     $reorder = ['revision' => Exhibit\Exhibitions\revision($persisted), 'chapters_json' => json_encode($content)] + $contentEdit;
     $response = $client->request($page, $reorder, null, true);
     check($response['status'] === 200, 'In-place HTTP reorder failed.');
@@ -425,4 +429,195 @@ function runExhibitionHttp(AuthHttpClient $client, PDO $db, string $base): int
     check(str_contains($dashboard['body'], '2 chapters'), 'Dashboard count did not reflect saved content.');
     echo "PASS: HTTP creation and metadata saving, CSRF, validation, 503 recovery, stale conflicts, dashboard, refresh/reopen and tenant isolation.\n";
     return $id;
+}
+
+function runPublicationPostgres(PDO $db, int $owner, int $other): void
+{
+    $service = new Exhibit\Exhibitions\Service($db);
+    foreach (['intro', 'text', 'artifact', 'figure'] as $kind) {
+        $id = $service->createDraft($owner, ['title' => 'Minimal ' . $kind]);
+        check($service->findPublished($id) === null, 'Draft exposed by public service.');
+        $saved = $service->findOwned($id, $owner, true);
+        $chapters = [['title' => 'Chapter', 'era' => '', 'intro' => '', 'blocks' => []]];
+        if ($kind === 'intro') {
+            $chapters[0]['intro'] = 'Meaningful opening';
+        } else {
+            $chapters[0]['blocks'][] = ['type' => $kind, 'content' => $kind === 'figure'
+                ? ['url' => 'https://example.test/image.jpg', 'alt' => '', 'caption' => '', 'credit' => '']
+                : ['heading' => '', 'body' => 'Meaningful content']];
+        }
+        $service->saveDraft($id, $owner, ['title' => $saved['title'],
+            'revision' => Exhibit\Exhibitions\revision($saved), 'chapters_json' => json_encode($chapters)]);
+        $saved = $service->findOwned($id, $owner, true);
+        $version = Exhibit\Exhibitions\revision($saved);
+        foreach ([[$other, $version], [$owner, md5('stale')]] as [$actor, $revision]) {
+            try {
+                $service->publish($id, $actor, $revision);
+                throw new LogicException('Foreign/stale publication accepted.');
+            } catch (Exhibit\Exhibitions\SaveConflict) {
+                check($service->findPublished($id) === null && $service->findOwned($id, $owner, true) === $saved,
+                    'Rejected publication changed saved draft.');
+            }
+        }
+        $service->publish($id, $owner, $version);
+        $published = $service->findPublished($id);
+        check($published !== null && $published['chapters'] === $saved['chapters']
+            && $published['cover'] === null && $published['summary'] === null && $published['category'] === null
+            && !array_key_exists('owner_id', $published) && !array_key_exists('updated_at', $published),
+            'Minimal publication lost content or needs optional metadata.');
+        $query = $db->prepare('SELECT status, published_at, updated_at FROM public.exhibitions WHERE id = ?');
+        $query->execute([$id]);
+        $state = $query->fetch();
+        check($state['status'] === 'published' && $state['published_at'] !== null, 'Publication state is inconsistent.');
+        $service->publish($id, $owner, $version);
+        $query->execute([$id]);
+        check($query->fetch() === $state, 'Duplicate publication changed timestamp or revision.');
+    }
+    echo "PASS: PostgreSQL publication of narrative/text/artifact/figure-only exhibitions, optional metadata, privacy, revisions, ownership and idempotence.\n";
+}
+
+function runPublicationHttp(AuthHttpClient $client, PDO $db, string $base, int $id): void
+{
+    $service = new Exhibit\Exhibitions\Service($db);
+    $owner = (int) $db->query("SELECT id FROM public.users WHERE email = 'http-creator@example.test'")->fetchColumn();
+    $saved = $service->findOwned($id, $owner, true);
+    $version = Exhibit\Exhibitions\revision($saved);
+    $route = 'publish.php?id=' . $id;
+    $overview = 'exhibition.php?id=' . $id;
+    $visitor = new AuthHttpClient($base);
+    foreach ([$visitor, $client] as $reader) {
+        foreach ([$overview, 'view.php?id=' . $id . '&chapter=' . $saved['chapters'][1]['id']] as $page) {
+            $response = $reader->request($page);
+            check($response['status'] === 404 && $response['body'] === 'Exhibition not found.'
+                && !str_contains($response['body'], 'HTTP chapter'), 'Public route exposed a draft.');
+        }
+    }
+    check($visitor->cookie === '', 'Public viewing started an anonymous session.');
+    check($visitor->request($route)['status'] === 303
+        && $visitor->request($route, ['revision' => $version])['status'] === 303, 'Anonymous publication allowed.');
+    $other = new AuthHttpClient($base);
+    $csrf = $other->csrf('sign-in.php');
+    check($other->request('sign-in.php', ['csrf' => $csrf, 'email' => 'draft-other@example.test',
+        'password' => 'draft-test-password-123'])['status'] === 303, 'Publication isolation login failed.');
+    check($other->request($route . '&revision=' . $version)['status'] === 404
+        && $other->request($route, ['csrf' => $csrf, 'revision' => $version])['status'] === 404, 'Foreign creator published/read confirmation.');
+    $confirmation = $client->request($route . '&revision=' . $version);
+    check($confirmation['status'] === 200 && str_contains($confirmation['body'], 'last saved version')
+        && str_contains($confirmation['headers'], 'Cache-Control: no-store'), 'Publish confirmation unavailable or not private.');
+    check($service->findOwned($id, $owner, true) === $saved && $service->findPublished($id) === null, 'GET published or changed the draft.');
+    $csrf = $client->csrf($route . '&revision=' . $version);
+    foreach ([[], ['csrf' => 'invalid'], ['csrf' => ['invalid']]] as $fields) {
+        check($client->request($route, $fields + ['revision' => $version])['status'] === 403, 'Publish bypassed CSRF.');
+    }
+    foreach ([[], ['revision' => []], ['revision' => 'bad']] as $fields) {
+        check($client->request($route, ['csrf' => $csrf] + $fields)['status'] === 409, 'Publish accepted missing/malformed revision.');
+    }
+    check($client->request($route, null, 'PUT')['status'] === 405, 'Publish accepted unsupported method.');
+    $emptyId = $service->createDraft($owner, ['title' => 'Empty publication test']);
+    $empty = $service->findOwned($emptyId, $owner, true);
+    $emptyVersion = Exhibit\Exhibitions\revision($empty);
+    check($client->request('publish.php?id=' . $emptyId . '&revision=' . $emptyVersion)['status'] === 422
+        && $client->request('publish.php?id=' . $emptyId, ['csrf' => $csrf, 'revision' => $emptyVersion])['status'] === 422
+        && $service->findPublished($emptyId) === null, 'Empty exhibition published.');
+    $service->saveDraft($id, $owner, ['title' => $saved['title'], 'summary' => $saved['summary'],
+        'subject' => $saved['category'], 'cover' => $saved['cover']['url'], 'revision' => $version]);
+    check($client->request($route, ['csrf' => $csrf, 'revision' => $version])['status'] === 409, 'Stale confirmation published a newer save.');
+    $saved = $service->findOwned($id, $owner, true);
+    $version = Exhibit\Exhibitions\revision($saved);
+    $db->exec("CREATE FUNCTION public.exhibit_test_publish_failure() RETURNS trigger LANGUAGE plpgsql AS
+        'BEGIN IF NEW.status = ''published'' THEN RAISE EXCEPTION ''test-only publish failure''; END IF; RETURN NEW; END;'");
+    $db->exec('CREATE TRIGGER exhibit_test_publish_failure BEFORE UPDATE ON public.exhibitions
+        FOR EACH ROW EXECUTE FUNCTION public.exhibit_test_publish_failure()');
+    try {
+        $failure = $client->request($route, ['csrf' => $csrf, 'revision' => $version]);
+        check($failure['status'] === 503 && !str_contains($failure['body'], 'test-only')
+            && $service->findPublished($id) === null && $service->findOwned($id, $owner, true) === $saved,
+            'Publication failure leaked details, exposed draft or changed saved version.');
+    } finally {
+        $db->exec('DROP TRIGGER exhibit_test_publish_failure ON public.exhibitions');
+        $db->exec('DROP FUNCTION public.exhibit_test_publish_failure()');
+    }
+    $published = $client->request($route, ['csrf' => $csrf, 'revision' => $version, 'title' => 'Forged published title',
+        'chapters_json' => '[]', 'owner_id' => '9999999']);
+    check($published['status'] === 303 && str_contains($published['headers'], '/exhibition.php?id=' . $id),
+        'Publishing did not redirect to public exhibition.');
+    $canonical = $service->findOwned($id, $owner, true);
+    check($canonical['chapters'] === $saved['chapters'] && $canonical['title'] === $saved['title']
+        && $canonical['status'] === 'published', 'Publishing changed content or accepted client overrides.');
+    $query = $db->prepare('SELECT published_at, updated_at FROM public.exhibitions WHERE id = ?');
+    $query->execute([$id]);
+    $timestamps = $query->fetch();
+    check($client->request($route, ['csrf' => $csrf, 'revision' => $version])['status'] === 303, 'Duplicate publication failed.');
+    $query->execute([$id]);
+    check($query->fetch() === $timestamps, 'Duplicate publication changed timestamp.');
+    $visitor = new AuthHttpClient($base);
+    $public = $visitor->request($overview);
+    check($public['status'] === 200 && str_contains($public['body'], Exhibit\Auth\escape($saved['title']))
+        && !str_contains($public['body'], $saved['title']) && !str_contains($public['body'], 'Birth of the Internet')
+        && !str_contains($public['headers'], 'Set-Cookie:'), 'Anonymous overview failed or exposed unescaped content/session.');
+    check(strpos($public['body'], '<h3>HTTP second chapter</h3>') < strpos($public['body'], '<h3>HTTP chapter</h3>'),
+        'Public chapter list is not in saved order.');
+    foreach ($saved['chapters'] as $index => $chapter) {
+        $page = 'view.php?id=' . $id . '&chapter=' . $chapter['id'];
+        $response = $visitor->request($page);
+        check($response['status'] === 200 && str_contains($response['body'], 'aria-valuemax="2"')
+            && str_contains($response['body'], 'aria-valuenow="' . ($index + 1) . '"')
+            && str_contains($response['body'], Exhibit\Auth\escape($chapter['title'])), 'Public chapter/progress did not render.');
+        check(str_contains($response['body'], 'rel="next"') === ($index < count($saved['chapters']) - 1)
+            && str_contains($response['body'], 'rel="prev"') === ($index > 0), 'Public chapter navigation boundaries wrong.');
+        $previous = -1;
+        foreach ($chapter['blocks'] as $block) {
+            $position = strpos($response['body'], 'data-block-id="' . $block['id'] . '"');
+            check($position !== false && $position > $previous, 'Public block order differs from saved order.');
+            $previous = $position;
+        }
+        if ($chapter['blocks'] !== []) {
+            check(str_contains($response['body'], '&lt;script&gt;literal text&lt;/script&gt;')
+                && !str_contains($response['body'], '<script>literal')
+                && str_contains($response['body'], 'alt="Exhibit image"')
+                && str_contains($response['body'], 'Figure caption &lt;script&gt;literal&lt;/script&gt;')
+                && str_contains($response['body'], 'Exhibit credit')
+                && str_contains($response['body'], 'referrerpolicy="no-referrer"'), 'Public text/figure rendering is unsafe or incomplete.');
+        }
+        check($visitor->request($page, ['title' => 'Denied'])['status'] === 405, 'Public chapter accepted writes.');
+    }
+    foreach (['exhibition.php?id=0', 'exhibition.php?id[]=1', 'exhibition.php?id=999999999',
+        'exhibition.php?chapter=1', 'view.php?chapter=1', 'view.php?id=' . $id,
+        'view.php?id=' . $id . '&chapter[]=1', 'view.php?id=' . $id . '&chapter=999999999'] as $invalid) {
+        $response = $visitor->request($invalid);
+        check($response['status'] === 404 && $response['body'] === 'Exhibition not found.', 'Invalid public URL fell back or disclosed information.');
+    }
+    $foreignChapter = $db->query("SELECT c.id FROM public.chapters c JOIN public.exhibitions e ON e.id = c.exhibition_id
+        WHERE e.id <> " . $id . " AND e.status = 'published' LIMIT 1")->fetchColumn();
+    check($visitor->request('view.php?id=' . $id . '&chapter=' . $foreignChapter)['status'] === 404, 'Public chapter from another exhibition exposed.');
+    $studio = $client->request('studio.php?id=' . $id);
+    check($studio['status'] === 200 && str_contains($studio['body'], 'Published exhibition. Read-only.')
+        && str_contains($studio['body'], '<fieldset class="studio-fields" disabled>')
+        && !str_contains($studio['body'], 'id="publish-form"')
+        && str_contains($studio['body'], 'href="' . $overview . '"'), 'Published Studio is not read-only with a public link.');
+    check($client->request('studio.php?id=' . $id, ['csrf' => $csrf, 'title' => 'Denied',
+        'revision' => Exhibit\Exhibitions\revision($canonical)])['status'] === 409, 'Published exhibition accepted a draft save.');
+    check($service->findOwned($id, $owner, true) === $canonical, 'Published save rejection changed content.');
+    check(str_contains($client->request('my-exhibitions.php')['body'], 'href="' . $overview . '"'),
+        'Published dashboard has no public link.');
+    check(!str_contains($visitor->request('explore.php')['body'], Exhibit\Auth\escape($saved['title'])),
+        'Publishing unexpectedly added dynamic discovery.');
+    check($visitor->cookie === '', 'Public viewing started a session.');
+    // The existing schema permits absent optional block fields, as does Studio validation.
+    $minimal = $service->createDraft($owner, ['title' => 'Optional block fields']);
+    $version = Exhibit\Exhibitions\revision($service->findOwned($minimal, $owner));
+    $service->saveDraft($minimal, $owner, ['title' => 'Optional block fields', 'revision' => $version,
+        'chapters_json' => json_encode([['title' => 'Minimal figure', 'intro' => 'Opening', 'blocks' => [
+            ['type' => 'figure', 'content' => ['url' => $base . '/assets/favicon.svg']],
+            ['type' => 'text', 'content' => ['body' => 'Body without heading']],
+        ]]])]);
+    $db->exec("UPDATE public.content_blocks b SET content = content - 'alt' - 'caption' - 'credit' - 'heading'
+        FROM public.chapters c WHERE b.chapter_id = c.id AND c.exhibition_id = " . $minimal);
+    $savedMinimal = $service->findOwned($minimal, $owner, true);
+    $service->publish($minimal, $owner, Exhibit\Exhibitions\revision($savedMinimal));
+    $minimalPage = $visitor->request('view.php?id=' . $minimal . '&chapter=' . $savedMinimal['chapters'][0]['id']);
+    check($minimalPage['status'] === 200 && str_contains($minimalPage['body'], 'alt=""')
+        && str_contains($minimalPage['body'], 'Body without heading')
+        && !str_contains($minimalPage['body'], '<figcaption'), 'Absent optional block fields broke public rendering.');
+    echo "PASS: HTTP saved-session-to-publish-to-anonymous-view workflow; privacy, CSRF, ownership, readiness, stale/duplicate requests, failure rollback, ordered safe rendering and read-only Studio.\n";
 }

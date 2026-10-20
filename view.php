@@ -1,4 +1,9 @@
 <?php
+if (array_key_exists('id', $_GET) || array_key_exists('chapter', $_GET)) {
+  $publicChapterView = true;
+  require __DIR__ . '/backend/public-exhibition.php';
+  exit;
+}
 // Exhibit prototype: one authored chapter, no database or authentication.
 $chapter = [
   'number' => '01',

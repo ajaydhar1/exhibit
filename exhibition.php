@@ -1,4 +1,9 @@
 <?php
+if (array_key_exists('id', $_GET) || array_key_exists('chapter', $_GET)) {
+  $publicChapterView = false;
+  require __DIR__ . '/backend/public-exhibition.php';
+  exit;
+}
 $exhibition = [
   'title' => 'The Birth of the Internet',
   'subtitle' => 'How an unlikely experiment connected the world.',
