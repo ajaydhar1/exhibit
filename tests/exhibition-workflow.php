@@ -96,7 +96,124 @@ function runExhibitionPostgres(PDO $db): void
         check($service->findOwned($id, $owner)['status'] === 'published', 'Saving changed publication state.');
     }
     check(count($service->listOwned($owner)) === $before, 'Saving added exhibitions.');
+    runStudioPostgres($db, $owner, $other);
     echo "PASS: PostgreSQL draft persistence, updates, stale/foreign/published save rejection and child counts.\n";
+}
+
+function runStudioPostgres(PDO $db, int $owner, int $other): void
+{
+    $service = new Exhibit\Exhibitions\Service($db);
+    $id = $service->createDraft($owner, ['title' => 'Studio content']);
+    $foreignId = $service->createDraft($other, ['title' => 'Foreign content']);
+    $siblingId = $service->createDraft($owner, ['title' => 'Unrelated owned content']);
+    $load = fn (int $draft, int $actor): array => $service->findOwned($draft, $actor, true);
+    $save = static function (int $draft, int $actor, array $chapters) use ($service, $load): void {
+        $row = $load($draft, $actor);
+        $service->saveDraft($draft, $actor, ['title' => $row['title'], 'subtitle' => 'A subtitle',
+            'description' => 'A detailed description', 'revision' => Exhibit\Exhibitions\revision($row),
+            'chapters_json' => json_encode($chapters, JSON_THROW_ON_ERROR)]);
+    };
+    $chapters = [
+        ['title' => 'First chapter', 'era' => 'First era', 'intro' => 'Opening', 'blocks' => [
+            ['type' => 'text', 'content' => ['heading' => 'First block', 'body' => 'Narrative']],
+            ['type' => 'artifact', 'content' => ['heading' => 'Second block', 'body' => 'Context']],
+            ['type' => 'figure', 'content' => ['url' => 'https://example.test/figure.jpg',
+                'alt' => 'An image', 'caption' => 'Caption', 'credit' => 'Source']],
+        ]],
+        ['title' => 'Second chapter', 'era' => '', 'intro' => '', 'blocks' => []],
+    ];
+    $save($id, $owner, $chapters);
+    $save($foreignId, $other, [$chapters[0]]);
+    $save($siblingId, $owner, [$chapters[0]]);
+    $sibling = $load($siblingId, $owner);
+    $saved = $load($id, $owner);
+    check($saved['subtitle'] === 'A subtitle' && $saved['description'] === 'A detailed description'
+        && count($saved['chapters']) === 2 && count($saved['chapters'][0]['blocks']) === 3, 'Content did not round trip.');
+    $chapterId = $saved['chapters'][0]['id'];
+    $blockIds = array_column($saved['chapters'][0]['blocks'], 'id');
+    $db->prepare("UPDATE public.chapters SET summary = 'Keep summary', eyebrow = 'Keep eyebrow',
+        ending_heading = 'Keep ending', ending_text = 'Keep text' WHERE id = ?")->execute([$chapterId]);
+    $reordered = array_reverse($saved['chapters']);
+    $reordered[1]['title'] = 'Edited chapter';
+    $reordered[1]['blocks'] = array_reverse($reordered[1]['blocks']);
+    $reordered[1]['blocks'][1]['content']['body'] = 'Edited artifact';
+    $save($id, $owner, $reordered);
+    $updated = $load($id, $owner);
+    check(array_column($updated['chapters'], 'id') === array_reverse(array_column($saved['chapters'], 'id'))
+        && array_column($updated['chapters'][1]['blocks'], 'id') === array_reverse($blockIds)
+        && $updated['chapters'][1]['title'] === 'Edited chapter'
+        && $updated['chapters'][1]['blocks'][1]['content']['body'] === 'Edited artifact', 'Editing/reordering lost content or stable IDs.');
+    $query = $db->prepare('SELECT summary, eyebrow, ending_heading, ending_text FROM public.chapters WHERE id = ?');
+    $query->execute([$chapterId]);
+    check($query->fetch() === ['summary' => 'Keep summary', 'eyebrow' => 'Keep eyebrow',
+        'ending_heading' => 'Keep ending', 'ending_text' => 'Keep text'], 'Studio erased unexposed chapter fields.');
+    $foreign = $load($foreignId, $other);
+    $forgedChapter = $updated['chapters'];
+    $forgedChapter[] = $foreign['chapters'][0];
+    $forgedBlock = $updated['chapters'];
+    $forgedBlock[1]['blocks'][] = $foreign['chapters'][0]['blocks'][0];
+    $crossChapter = $updated['chapters'];
+    $crossChapter[0]['blocks'][] = array_pop($crossChapter[1]['blocks']);
+    foreach ([$forgedChapter, $forgedBlock, $crossChapter] as $invalid) {
+        try {
+            $save($id, $owner, $invalid);
+            throw new RuntimeException('Foreign or moved child was accepted.');
+        } catch (Exhibit\Exhibitions\ValidationError) {
+            check($load($id, $owner) === $updated && $load($foreignId, $other) === $foreign, 'Rejected child save changed data or revision.');
+        }
+    }
+    $db->exec("CREATE FUNCTION public.exhibit_test_block_failure() RETURNS trigger LANGUAGE plpgsql AS
+        'BEGIN RAISE EXCEPTION ''test-only block failure''; END;'");
+    $db->exec('CREATE TRIGGER exhibit_test_block_failure BEFORE UPDATE ON public.content_blocks
+        FOR EACH ROW EXECUTE FUNCTION public.exhibit_test_block_failure()');
+    try {
+        try {
+            $save($id, $owner, $updated['chapters']);
+            throw new RuntimeException('Injected block failure reported success.');
+        } catch (PDOException) {
+            check($load($id, $owner) === $updated, 'Mid-save failure committed metadata, revision or children.');
+        }
+    } finally {
+        $db->exec('DROP TRIGGER exhibit_test_block_failure ON public.content_blocks');
+        $db->exec('DROP FUNCTION public.exhibit_test_block_failure()');
+    }
+    $remaining = $updated['chapters'];
+    array_shift($remaining);
+    array_shift($remaining[0]['blocks']);
+    $save($id, $owner, $remaining);
+    $deleted = $load($id, $owner);
+    check(count($deleted['chapters']) === 1 && count($deleted['chapters'][0]['blocks']) === 2
+        && $deleted['chapters'][0]['id'] === $chapterId, 'Child removal did not persist.');
+    $positions = $db->prepare('SELECT position FROM public.content_blocks WHERE chapter_id = ? ORDER BY position');
+    $positions->execute([$chapterId]);
+    check(array_map('intval', array_column($positions->fetchAll(), 'position')) === [1, 2], 'Block positions contain gaps.');
+    check($load($foreignId, $other) === $foreign && $load($siblingId, $owner) === $sibling,
+        'Deleting chapters or blocks changed another exhibition.');
+    try {
+        $service->saveDraft($id, $owner, ['title' => 'Stale content', 'revision' => Exhibit\Exhibitions\revision($updated),
+            'chapters_json' => json_encode($updated['chapters'])]);
+        throw new RuntimeException('Stale content overwrote newer save.');
+    } catch (Exhibit\Exhibitions\SaveConflict) {
+        check($load($id, $owner) === $deleted, 'Stale content save changed data.');
+    }
+    $save($id, $owner, []);
+    check($load($id, $owner)['chapters'] === [], 'Removing all chapters did not persist.');
+    $query = $db->prepare('SELECT count(*) FROM public.content_blocks WHERE id = ANY(CAST(? AS bigint[]))');
+    $query->execute(['{' . implode(',', $blockIds) . '}']);
+    check((int) $query->fetchColumn() === 0, 'Removing chapters left orphan blocks.');
+    check($load($foreignId, $other) === $foreign && $load($siblingId, $owner) === $sibling,
+        'Removing all content changed another exhibition or its revision.');
+    echo "PASS: PostgreSQL Studio content round trips, stable-ID reorder, field preservation, child isolation, rollback, deletion and stale revisions.\n";
+}
+
+function studioSavedContent(array $response): array
+{
+    check($response['status'] === 200
+        && preg_match('/id="exhibition-chapters_json" name="chapters_json" value="([^"]*)"/', $response['body'], $match) === 1,
+        'Studio did not render its saved content payload.');
+    $content = json_decode(html_entity_decode($match[1], ENT_QUOTES | ENT_HTML5, 'UTF-8'), true, 32, JSON_THROW_ON_ERROR);
+    check(is_array($content) && array_is_list($content), 'Studio saved content is not an ordered list.');
+    return $content;
 }
 
 function runExhibitionHttp(AuthHttpClient $client, PDO $db, string $base): int
@@ -173,7 +290,8 @@ function runExhibitionHttp(AuthHttpClient $client, PDO $db, string $base): int
     $edit = ['csrf' => $csrf, 'revision' => $version, 'title' => 'Updated <script>metadata</script>',
         'summary' => 'Updated introduction & question.', 'subject' => 'Science & Nature',
         'cover' => 'https://example.test/updated.jpg?x=1&y=2',
-        'owner_id' => '99999999', 'status' => 'published', 'subtitle' => 'forged', 'chapters' => ['forged']];
+        'owner_id' => '99999999', 'status' => 'published', 'subtitle' => 'An edited subtitle',
+        'description' => 'A detailed description'];
     foreach ([[], ['csrf' => 'wrong'], ['csrf' => ['invalid']]] as $invalidCsrf) {
         $denied = $client->request($page, $invalidCsrf + array_diff_key($edit, ['csrf' => true]));
         check($denied['status'] === 403 && str_contains($denied['body'], Exhibit\Auth\escape($edit['summary'])), 'Save bypassed CSRF or lost input.');
@@ -200,6 +318,9 @@ function runExhibitionHttp(AuthHttpClient $client, PDO $db, string $base): int
         check($failure['status'] === 503 && str_contains($failure['body'], 'Simulate save failure')
             && str_contains($failure['body'], Exhibit\Auth\escape($edit['summary']))
             && !str_contains($failure['body'], 'test-only failure'), 'Database error lost input or leaked exception.');
+        $failure = $client->request($page, ['title' => 'Simulate save failure'] + $edit, null, true);
+        check($failure['status'] === 503 && json_decode($failure['body'], true)['editable'] === true
+            && !str_contains($failure['body'], 'test-only failure'), 'JSON save failure leaked details or lost retry feedback.');
     } finally {
         $db->exec('DROP TRIGGER exhibit_test_save_failure ON public.exhibitions');
         $db->exec('DROP FUNCTION public.exhibit_test_save_failure()');
@@ -225,7 +346,8 @@ function runExhibitionHttp(AuthHttpClient $client, PDO $db, string $base): int
     $query->execute([$id]);
     $raw = $query->fetch();
     check((int) $raw['owner_id'] === $owner && $raw['status'] === 'draft' && $raw['published_at'] === null, 'Save altered ownership or status.');
-    check($raw === $original, 'Save changed system-controlled or non-metadata fields.');
+    check($raw === array_replace($original, ['subtitle' => $edit['subtitle'], 'description' => $edit['description']]),
+        'Save changed system-controlled fields or lost editable metadata.');
     check((int) $db->query('SELECT count(*) FROM public.exhibitions')->fetchColumn() === $count + 2, 'Save created duplicate records.');
     // A separate verified session exercises actual HTTP tenant isolation.
     $other = new AuthHttpClient($base);
@@ -247,6 +369,60 @@ function runExhibitionHttp(AuthHttpClient $client, PDO $db, string $base): int
     $childQuery->execute([$id, $id]);
     $children = $childQuery->fetch();
     check((int) $children['chapters'] === 0 && (int) $children['blocks'] === 0, 'HTTP creation seeded placeholder children.');
+    $current = $client->request($page);
+    check(preg_match('/name="revision" value="([a-f0-9]{32})"/', $current['body'], $versionMatch) === 1, 'Content version missing.');
+    $content = [['title' => 'HTTP chapter', 'era' => 'HTTP era', 'intro' => 'HTTP opening', 'blocks' => [
+        ['type' => 'text', 'content' => ['heading' => 'HTTP heading', 'body' => '<script>literal text</script>']],
+        ['type' => 'artifact', 'content' => ['heading' => 'HTTP artifact', 'body' => 'Context']],
+    ]], ['title' => 'HTTP second chapter', 'era' => '', 'intro' => '', 'blocks' => []]];
+    $contentEdit = ['revision' => $versionMatch[1], 'chapters_json' => json_encode($content)] + $edit;
+    $badContent = $client->request($page, ['chapters_json' => '{}'] + $contentEdit);
+    check($badContent['status'] === 422 && str_contains($badContent['body'], 'Content must be an ordered list')
+        && str_contains($badContent['body'], 'name="chapters_json" value="{}"'), 'Invalid content shape accepted or input lost.');
+    $badCsrf = $client->request($page, ['csrf' => 'invalid'] + $contentEdit);
+    check($badCsrf['status'] === 403 && str_contains($badCsrf['body'], 'HTTP chapter'), 'Content save bypassed CSRF or lost edits.');
+    $response = $client->request($page, $contentEdit, null, true);
+    $snapshot = json_decode($response['body'], true, 512, JSON_THROW_ON_ERROR);
+    check($response['status'] === 200 && str_contains($response['headers'], 'Content-Type: application/json')
+        && !str_contains($response['headers'], 'Location:') && $snapshot['message'] === 'Draft saved successfully.'
+        && preg_match('/\A[a-f0-9]{32}\z/', $snapshot['revision']) === 1, 'In-place save did not return a confirmed snapshot.');
+    $reopened = $client->request($page);
+    check($reopened['status'] === 200 && str_contains($reopened['body'], 'HTTP chapter')
+        && !str_contains($reopened['body'], '<script>literal text</script>'), 'Reopened content missing or unsafe.');
+    $service = new Exhibit\Exhibitions\Service($db);
+    $persisted = $service->findOwned($id, $owner, true);
+    check(json_decode($snapshot['values']['chapters_json'], true) === $persisted['chapters']
+        && $snapshot['revision'] === Exhibit\Exhibitions\revision($persisted)
+        && is_string($persisted['chapters'][0]['id']) && is_string($persisted['chapters'][0]['blocks'][0]['id']),
+        'In-place save returned incorrect content, database IDs or revision.');
+    check(studioSavedContent($reopened) === $persisted['chapters'], 'Studio did not restore the exact persisted tree.');
+    $content = array_reverse($persisted['chapters']);
+    $content[1]['blocks'] = array_reverse($content[1]['blocks']);
+    $content[1]['intro'] = 'Edited HTTP opening';
+    $content[1]['blocks'][0]['content']['body'] = 'Edited HTTP artifact context';
+    $reorder = ['revision' => Exhibit\Exhibitions\revision($persisted), 'chapters_json' => json_encode($content)] + $contentEdit;
+    $response = $client->request($page, $reorder, null, true);
+    check($response['status'] === 200, 'In-place HTTP reorder failed.');
+    $ordered = $service->findOwned($id, $owner, true);
+    check($ordered['chapters'] === $content && studioSavedContent($client->request($page)) === $content,
+        'HTTP edits, chapter/block order or stable IDs did not survive reopening Studio.');
+    check($client->request($page, $contentEdit)['status'] === 409, 'HTTP stale content save accepted.');
+    foreach ([
+        [['csrf' => 'invalid'] + $reorder, 403],
+        [['revision' => Exhibit\Exhibitions\revision($ordered), 'title' => ' '] + $reorder, 422],
+        [$contentEdit, 409],
+    ] as [$invalid, $status]) {
+        $response = $client->request($page, $invalid, null, true);
+        $error = json_decode($response['body'], true, 512, JSON_THROW_ON_ERROR);
+        check($response['status'] === $status && is_string($error['message'])
+            && $error['editable'] === ($status !== 409) && !isset($error['values']),
+            'In-place save lost CSRF/validation/conflict protection or error feedback.');
+    }
+    check($other->request($page, ['csrf' => $otherCsrf] + $reorder)['status'] === 404, 'Foreign creator saved content.');
+    check($other->request($page, ['csrf' => $otherCsrf] + $reorder, null, true)['status'] === 404,
+        'In-place save bypassed ownership.');
+    $dashboard = $client->request('my-exhibitions.php');
+    check(str_contains($dashboard['body'], '2 chapters'), 'Dashboard count did not reflect saved content.');
     echo "PASS: HTTP creation and metadata saving, CSRF, validation, 503 recovery, stale conflicts, dashboard, refresh/reopen and tenant isolation.\n";
     return $id;
 }

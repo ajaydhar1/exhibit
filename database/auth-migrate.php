@@ -30,9 +30,7 @@ try {
         exit(0);
     }
     $database = substr($arguments[1], 11);
-    $environment = [
-        'DATABASE_URL' => getenv('DATABASE_URL'), 'DB_SSLMODE' => getenv('DB_SSLMODE'), 'DB_SSLROOTCERT' => getenv('DB_SSLROOTCERT'),
-    ];
+    $environment = Exhibit\Database\processEnvironment();
     Exhibit\Database\configuration($environment);
     $parts = parse_url($environment['DATABASE_URL']);
     if (rawurldecode(substr($parts['path'], 1)) !== $database) {

@@ -30,7 +30,11 @@ Generate the key in a private administrative environment using
 `bin2hex(random_bytes(32))`; do not print it in shared logs. Rotating it makes
 pending queue messages unreadable and resets HMAC bucket identities. Coordinate
 rotation and discard/reissue pending emails as an explicit maintenance action.
-No `.env` loader or credential file is created.
+Production uses no `.env` loader or credential file. The approved
+[persistent Windows development launcher](local-development.md) stores its own
+development-only settings with Windows DPAPI outside the web root/repository
+and supplies process variables to AMPPS PHP. It also provides a private CLI
+inbox for normal local token verification without external mail delivery.
 
 ## Transactional email configuration and delivery
 
@@ -181,9 +185,12 @@ startup or blindly rerun a migration after an ambiguous commit.
   the same 404. Studio calls the ownership guard and loads metadata with both ID
   and owner predicates. The dashboard filters by the session-derived creator ID;
   draft creation never trusts owner/status/slug/publication fields from the client.
-  Creation and Studio metadata saving use CSRF-protected POST with a success
-  redirect; the dashboard accepts only GET. Studio updates only title, summary,
-  category and cover, with atomic owner/draft/revision predicates. Existing
+  Creation and Studio saving use CSRF-protected POST with a success
+  redirect; the dashboard accepts only GET. Studio updates editable metadata and
+  ordered chapters/content, with atomic owner/draft/revision predicates. Content
+  writes lock the parent exhibition and validate every existing child ID against
+  its exhibition/chapter before mutation. All content and metadata changes roll
+  back together on failure; client ownership/publication fields are ignored. Existing
   `updated_at` supports stale-save rejection without a migration. Validation,
   conflict and save-service failures retain submitted fields; stale revisions
   cannot be silently rebased. Bare Studio

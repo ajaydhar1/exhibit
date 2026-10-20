@@ -5,9 +5,30 @@ authentication and creator-owned persistent exhibition drafts.
 
 ## Local development (Ampps)
 
-Copy `exhibit-homepage` into `C:\Program Files\Ampps\www\` and open:
+For the fully functional persistent local app, use the guarded AMPPS PHP launcher:
 
-`http://localhost/exhibit-homepage/`
+```powershell
+powershell -NoProfile -File .\database\local.ps1 start
+```
+
+Open **http://127.0.0.1:8085/**. From another terminal:
+
+```powershell
+powershell -NoProfile -File .\database\local.ps1 status
+powershell -NoProfile -File .\database\local.ps1 inbox
+powershell -NoProfile -File .\database\local.ps1 stop
+```
+
+The approved persistent development database is `exhibit_development` on
+`127.0.0.1:55432`, separate from production and disposable test databases.
+Local credentials/authentication keys are DPAPI-encrypted outside the repository.
+Use **inbox** privately for local verification/reset links; no real email is sent.
+Do not rerun initialization on the existing development data. See
+[Local development setup and troubleshooting](docs/local-development.md) for
+one-time approved setup, start/stop behavior, isolation, and private logs.
+
+The VS Code PHP Server on port 3000 does not load this configuration, and the
+restricted prior acceptance server on port 8091 is not the development app.
 
 All navigation uses regular `.php` links. No URL rewriting is required. Public
 exhibition pages remain database-independent and accessible without signing in.
@@ -39,29 +60,55 @@ your saved exhibitions, newest-updated first, or an empty state with a creation
 link. Cards show persisted metadata, draft status, and a derived chapter count.
 The creator screens remain private, `no-store`, and `noindex`.
 
-## Exhibition Studio metadata editing
+## Exhibition Studio editing and saving (Milestone 2)
 
 Use **Open Studio** on a dashboard card to open `studio.php?id=ID`. Studio loads
-that creator-owned exhibition's saved title, introduction, subject, cover, and
-status. Edit the title, introduction, subject, and cover URL using the existing
-three-column Studio. The live preview changes immediately, without a database
-write. **Save Draft** persists only these four fields to the same record; it
-never changes ownership, publication state, chapters, or content blocks.
-Refreshing, leaving, or signing in again does not discard saved details.
+that creator-owned exhibition's saved metadata and ordered chapters/content in
+one database snapshot. The existing three-column Studio supports title,
+introduction, subject, cover URL, subtitle (100 characters), and description
+(10,000 characters). The established title, introduction, topic choices and
+cover validation remain unchanged.
+
+Select **Exhibition details** or a chapter in the organizer. Add, edit, remove,
+and move chapters up/down; edit chapter title (110 characters), era/subtitle
+(100), and opening narrative (2,000). Text and artifact blocks use the original
+heading (130) and body (2,000) model. The existing schema's figure type uses an
+HTTP(S) image URL (2,048 bytes), alt text (320), caption (2,000), and credit (320).
+All narrative fields are plain text, never interpreted as HTML. Image URLs are
+displayed by the browser, not fetched by the backend.
+
+**Save Draft** persists metadata and the entire ordered content tree atomically.
+Existing chapter/block IDs remain stable on edits/reordering; deletions cascade
+only through their own chapter. Unexposed chapter fields are preserved. Child
+IDs must already belong to this exhibition and chapter; blocks cannot be moved
+between chapters by submitting another parent's ID. New content has no ID.
+Content uses a JSON list (maximum 1 MiB) instead of hundreds of nested form fields.
+Unknown block fields/types are explicitly rejected rather than silently discarded.
+No ownership or publication fields can be changed through Studio.
+Refreshing, leaving, or signing in again restores the latest saved work.
 Bare `studio.php` redirects verified creators to the dashboard; malformed,
 nonexistent, and foreign-owned IDs return the same 404. Saving requires verified
 creator authentication, ownership, session CSRF, and server-side validation.
-It works without JavaScript using POST/303/GET. Validation and service errors
+Metadata saving works without JavaScript using POST/303/GET and preserves existing
+content. Chapter/block editing and live previews require JavaScript. Validation and service errors
 retain entered values, with field errors and an explicit status message.
 The interface distinguishes unsaved changes, saving, saved, and save errors;
 JavaScript also warns before leaving unsaved edits.
+With JavaScript, saving happens in place: the selected chapter or Exhibition
+Details, editor inputs, focus and scroll position are retained. A successful
+save refreshes the canonical values, assigned chapter/block IDs and revision
+without navigation. Fields are briefly locked during the request; failures
+retain edits and show feedback, and stale saves still require reopening Studio.
 
 An atomic owner/draft/version predicate uses the existing `updated_at` timestamp.
+Content saves hold that parent lock through child validation and all writes;
+deferred existing position constraints allow swaps without temporary positions.
+Any failure rolls back metadata, content, ordering, and revision together.
 A stale or missing revision returns 409 rather than overwriting a newer save.
 Copy unsaved edits and reopen Studio to review the latest values; there is no
 force-overwrite control. Published exhibitions cannot be saved through this action.
-No schema changes or migrations are required. Chapter/block editing and publishing
-remain unavailable.
+No schema changes or migrations are required. Publishing and database-backed
+public viewing remain unavailable; the preview is private and local to Studio.
 
 
 ## Create Exhibition
@@ -138,16 +185,22 @@ node --test tests\exhibition-ui.js
 
 These suites do not write to PostgreSQL. Exhibition unit tests validate fields,
 URL/ID boundaries, owner-scoped SQL bindings, slug retries, and explicit failures
-using scripted PDO doubles. Use the isolated PHP runtime/extension options in
+using scripted PDO doubles. They also cover content validation, stable-ID ordering,
+one-snapshot loading, transactional writes, rollback and child ownership.
+Use the isolated PHP runtime/extension options in
 [Authentication setup](docs/authentication.md) for session/HTTP suites.
 The optional Node built-in test runner checks preview, native form submission,
 validation feedback, safe live metadata previews, unsaved/saving/error states,
-navigation warnings, and duplicate-submit prevention without packages or a database.
+navigation warnings, duplicate-submit prevention, and chapter/block editing,
+ordering, deletion, serialization and previews without packages or a database.
 
 The extended `tests\auth-postgres.php --run` suite covers actual draft persistence,
-two-creator isolation, creation and metadata-saving/dashboard/Studio HTTP flows,
+two-creator isolation, creation and full Studio-saving/dashboard HTTP flows,
 CSRF, validation, database-error input retention, stale/published-save rejection,
-refresh/reopen, and a new sign-in session. It requires an **empty disposable
+refresh/reopen, a new sign-in session, child-ID isolation, stable-ID chapter/block
+reordering with exact saved-tree comparisons, preservation of unexposed fields,
+deletion/cascades without affecting same-owner or foreign-owner exhibitions, and injected
+mid-content-save failure rollback. It requires an **empty disposable
 loopback `exhibit_test_SUFFIX` database**, installs the test schema using both
 existing migrations, and removes it afterward. It must not run while migration or
 database-writing approval is withheld, or against development/production.
@@ -171,7 +224,53 @@ or another exhibition, send email, or change environment settings.
 
 All destructive, invalid-input, cross-account, and database-failure scenarios
 belong in the disposable automated environment, not the existing live draft.
-### Milestone validation
+
+### Milestone 2 persistence verification (2026-10-20)
+
+The Studio content-editing implementation passed 15 exhibition unit groups, 11
+Node UI tests, 54 offline database-contract checks, 10 authentication unit groups,
+and 18 database-independent HTTP scenarios. A database-free browser fixture using
+the actual Studio template/assets verified content editing, ordering, removal
+confirmation, safe previews, validation, save-state feedback and no horizontal
+overflow at 1440px and 390px CSS viewport widths. Fixture submissions were blocked;
+no development or production records were changed.
+
+The previously unverified database-backed tests now pass against a fresh
+PostgreSQL 18.6 cluster bound only to `127.0.0.1`, using PHP 8.2.27 with explicit
+OpenSSL/PDO PostgreSQL extensions and no shared PHP configuration. Three newly
+created `exhibit_test_m2_*` databases isolated the suites. Only the existing
+checked-in migrations initialized these empty databases; no new migration,
+development/production database change, deployment or publishing work occurred.
+
+| Suite | Result |
+| --- | --- |
+| `php tests\postgres.php --run` | 16 PostgreSQL foundation checks passed |
+| `php tests\auth-migrations.php --run` | 16 authentication migration/preflight scenarios passed |
+| `php tests\auth-postgres.php --run` | Eight authentication service groups, draft and Studio content persistence groups, authenticated Studio HTTP workflow, and 23 authentication HTTP scenarios passed |
+| `php tests\exhibitions.php` | 15 exhibition unit groups passed |
+| `node --test tests\exhibition-ui.js` | 11 UI tests passed |
+| `php tests\run.php` | 54 offline contract checks passed |
+| `php tests\auth.php` | 10 authentication unit groups passed |
+| `php tests\auth-http.php` | 18 database-independent HTTP scenarios passed |
+| `php tests\mail.php` | 10 offline mail groups passed; no real delivery |
+
+The real PostgreSQL runs verified creation/loading, metadata edits, chapter/block
+add/edit/remove/reorder, stable IDs, exact saved-tree restoration after reopening
+and signing in again, malformed/foreign ID rejection, CSRF and validation failures,
+stale-save conflicts, and full rollback after an injected mid-content-save
+database failure. Deleting individual content or all chapters left both
+same-owner and foreign-owner exhibitions unchanged, including their revisions.
+No application bugs were found; tests were strengthened to assert these exact
+cross-session and deletion-isolation outcomes.
+
+All suites passed with zero failures. Independent queries confirmed zero
+remaining user relations/routines in all three test databases. The disposable
+databases were dropped, the server shut down cleanly, its listener was confirmed
+absent, and its session-local data/runtime/download directory was removed.
+Milestone 2 is ready for acceptance sign-off. Live deployment and publishing
+remain outside this verification.
+
+### Prior milestone validation
 
 The approved isolated PostgreSQL 18.6 run passed: 16 foundation checks, eight
 authentication service groups, exhibition persistence/ownership checks, the

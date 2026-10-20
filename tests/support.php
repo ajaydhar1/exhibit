@@ -38,5 +38,6 @@ function testEnvironment(array $environment): array
         'DATABASE_URL' => $url,
         'DB_SSLMODE' => $environment['TEST_DB_SSLMODE'] ?? false,
         'DB_SSLROOTCERT' => $environment['TEST_DB_SSLROOTCERT'] ?? false,
+        'APP_ENV' => 'test',
     ];
 }

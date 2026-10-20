@@ -43,6 +43,18 @@ function configuration(array $environment): array
     $username = rawurldecode($parts['user']);
     $password = rawurldecode($parts['pass']);
     $port = $parts['port'] ?? 5432;
+    $profile = $environment['APP_ENV'] ?? false;
+    if ($profile !== false && $profile !== '' && !in_array($profile, ['development', 'test', 'production'], true)) {
+        throw new InvalidArgumentException('APP_ENV must be development, test, or production.');
+    }
+    if ($profile === 'development' && ($parts['host'] !== '127.0.0.1'
+        || $port !== 55432 || $database !== 'exhibit_development')) {
+        throw new InvalidArgumentException('Development connections require 127.0.0.1:55432/exhibit_development. Remote and other database targets are forbidden.');
+    }
+    if ($profile === 'test' && (!in_array($parts['host'], ['localhost', '127.0.0.1', '[::1]'], true)
+        || preg_match('/\Aexhibit_test_[a-z0-9_]+\z/', $database) !== 1)) {
+        throw new InvalidArgumentException('Test connections require a loopback exhibit_test_SUFFIX database.');
+    }
 
     if ((!filter_var($host, FILTER_VALIDATE_IP)
             && !preg_match('/\A[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?\z/i', $host))
@@ -159,14 +171,20 @@ function connectionFailureSummary(PDOException $error): string
         . '; SQLSTATE=' . $details['sqlstate'] . '; driver_detail=' . $details['driver_detail'] . ']';
 }
 
-/** @param array<string, string|false>|null $environment */
-function connect(?array $environment = null): PDO
+function processEnvironment(): array
 {
-    $config = configuration($environment ?? [
+    return [
         'DATABASE_URL' => getenv('DATABASE_URL'),
         'DB_SSLMODE' => getenv('DB_SSLMODE'),
         'DB_SSLROOTCERT' => getenv('DB_SSLROOTCERT'),
-    ]);
+        'APP_ENV' => getenv('APP_ENV'),
+    ];
+}
+
+/** @param array<string, string|false>|null $environment */
+function connect(?array $environment = null): PDO
+{
+    $config = configuration($environment ?? processEnvironment());
 
     if (!in_array('pgsql', PDO::getAvailableDrivers(), true)) {
         throw new RuntimeException('Exhibit requires the pdo_pgsql PHP extension.');

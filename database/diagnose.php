@@ -16,11 +16,7 @@ if (count($argv) !== 2 || !str_starts_with($argv[1], '--database=') || substr($a
 $pdo = null;
 $exitCode = 0;
 try {
-    $environment = [
-        'DATABASE_URL' => getenv('DATABASE_URL'),
-        'DB_SSLMODE' => getenv('DB_SSLMODE'),
-        'DB_SSLROOTCERT' => getenv('DB_SSLROOTCERT'),
-    ];
+    $environment = \Exhibit\Database\processEnvironment();
     \Exhibit\Database\configuration($environment);
     $parts = parse_url($environment['DATABASE_URL']);
     if (rawurldecode(substr($parts['path'], 1)) !== substr($argv[1], 11)) {

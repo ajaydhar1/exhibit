@@ -206,6 +206,171 @@ $tests['Database failures propagate rather than returning empty or success'] = s
     }
 };
 
+function studioConnection(array &$events, array $responses): PDO
+{
+    return new class($events, $responses) extends PDO {
+        private array $events;
+        private bool $active = false;
+        public function __construct(array &$events, private array $responses) { $this->events =& $events; }
+        public function beginTransaction(): bool { $this->events[] = ['begin']; return $this->active = true; }
+        public function inTransaction(): bool { return $this->active; }
+        public function commit(): bool { $this->events[] = ['commit']; $this->active = false; return true; }
+        public function rollBack(): bool { $this->events[] = ['rollback']; $this->active = false; return true; }
+        public function exec(string $statement): int|false { $this->events[] = [$statement]; return 0; }
+        public function prepare(string $query, array $options = []): PDOStatement|false
+        {
+            $next = function () use ($query): mixed {
+                check($this->responses !== [], 'Unexpected SQL statement: ' . $query);
+                return array_shift($this->responses);
+            };
+            return new class($this->events, $query, $next) extends PDOStatement {
+                private array $events;
+                private mixed $response;
+                public function __construct(array &$events, private string $query, private Closure $next) { $this->events =& $events; }
+                public function execute(?array $params = null): bool
+                {
+                    $this->events[] = [$this->query, $params];
+                    $this->response = ($this->next)();
+                    if ($this->response instanceof Throwable) throw $this->response;
+                    return true;
+                }
+                public function fetchColumn(int $column = 0): mixed { return $this->response; }
+                public function fetchAll(int $mode = PDO::FETCH_DEFAULT, mixed ...$args): array { return $this->response; }
+            };
+        }
+    };
+}
+
+function contentFixture(): array
+{
+    return [['id' => '11', 'title' => 'First', 'era' => 'An era', 'intro' => 'Opening', 'blocks' => [
+        ['id' => '21', 'type' => 'text', 'content' => ['heading' => 'Heading', 'body' => 'Body']],
+        ['id' => '22', 'type' => 'artifact', 'content' => ['heading' => 'Artifact', 'body' => 'Context']],
+    ]]];
+}
+
+$tests['Studio validates exact content shapes, lengths, URLs and duplicate IDs before SQL'] = static function (): void {
+    $fixture = contentFixture();
+    $validated = Exhibit\Exhibitions\validateContent(json_encode($fixture, JSON_THROW_ON_ERROR));
+    check($validated[0]['id'] === 11 && $validated[0]['blocks'][1]['id'] === 22, 'Content identifiers were not normalized.');
+    $invalid = ['{}', 'null', '[', str_repeat('x', 1048577), '[{"title":"X","blocks":{}}]',
+        '[{"title":"X","blocks":[{"type":"text","content":[]}]}]'];
+    $invalid[] = '[{"title":"' . "\xff" . '","blocks":[]}]';
+    foreach (['title' => '', 'era' => str_repeat('x', 101), 'intro' => "\0", 'id' => '01'] as $field => $value) {
+        $copy = $fixture;
+        $copy[0][$field] = $value;
+        $invalid[] = json_encode($copy, JSON_THROW_ON_ERROR);
+    }
+    $copy = $fixture;
+    $copy[0]['blocks'][0]['content']['body'] = str_repeat('x', 2001);
+    $invalid[] = json_encode($copy);
+    $copy = $fixture;
+    $copy[0]['blocks'][0]['content']['html'] = '<script>bad</script>';
+    $invalid[] = json_encode($copy);
+    $invalid[] = json_encode([$fixture[0], $fixture[0]]);
+    $copy = $fixture;
+    $copy[0]['blocks'][1]['id'] = '21';
+    $invalid[] = json_encode($copy);
+    $copy = $fixture;
+    $copy[0]['blocks'][0] = ['type' => 'figure', 'content' => ['url' => 'javascript:alert(1)']];
+    $invalid[] = json_encode($copy);
+    $copy[0]['blocks'][0]['type'] = 'video';
+    $invalid[] = json_encode($copy);
+    foreach ($invalid as $json) {
+        $calls = [];
+        try {
+            (new Service(exhibitionConnection($calls, [])))->saveDraft(42, 7, [
+                'title' => 'Idea', 'revision' => str_repeat('a', 32), 'chapters_json' => $json]);
+            throw new LogicException('Invalid content accepted.');
+        } catch (ValidationError $error) {
+            check(isset($error->errors['content']) && $calls === [], 'Invalid content executed SQL or lacks feedback.');
+        }
+    }
+    $fixture[0]['title'] = str_repeat("\xc3\xa9", 110);
+    $fixture[0]['intro'] = str_repeat('x', 2000);
+    $fixture[0]['blocks'][0]['content'] = ['heading' => str_repeat('x', 130), 'body' => str_repeat('x', 2000)];
+    check(count(Exhibit\Exhibitions\validateContent(json_encode($fixture))) === 1, 'Exact content boundaries rejected.');
+};
+
+$tests['Studio persists ordered content with stable IDs and an atomic owner/version parent update'] = static function (): void {
+    $events = [];
+    $fixture = contentFixture();
+    $fixture[0]['blocks'] = array_reverse($fixture[0]['blocks']);
+    $fixture[] = ['id' => null, 'title' => 'New chapter', 'era' => '', 'intro' => '', 'blocks' => []];
+    $service = new Service(studioConnection($events, [
+        'new timestamp', [['id' => '11']], [['id' => '21', 'chapter_id' => '11'], ['id' => '22', 'chapter_id' => '11']],
+        true, true, true, '12',
+    ]));
+    $service->saveDraft(42, 7, ['title' => 'Idea', 'subtitle' => 'Subtitle', 'description' => 'Description',
+        'revision' => str_repeat('a', 32), 'chapters_json' => json_encode($fixture)]);
+    check($events[0] === ['begin'] && end($events) === ['commit'], 'Content save is not transactional.');
+    check(str_contains($events[1][0], "owner_id = ? AND status = 'draft' AND md5(updated_at::text) = ?")
+        && $events[1][1] === ['Idea', null, null, null, 'Subtitle', 'Description', 42, 7, str_repeat('a', 32)],
+        'Metadata or atomic ownership/version guard lost.');
+    check(str_contains($events[4][0], 'DEFERRED'), 'Ordering constraints are not deferred.');
+    check($events[5][1] === [1, 'First', 'An era', 'Opening', 11, 42], 'Chapter identity/position binding incorrect.');
+    check($events[6][1] === [1, 'artifact', '{"heading":"Artifact","body":"Context"}', 22, 11]
+        && $events[7][1][0] === 2 && $events[7][1][3] === 21, 'Reordering did not preserve block IDs.');
+    check($events[8][1][0] === 42 && $events[8][1][1] === 2, 'New chapter parent or order incorrect.');
+};
+
+$tests['Studio rolls back stale revisions, foreign children, cross-chapter blocks and database failures'] = static function (): void {
+    $fixture = contentFixture();
+    foreach ([
+        [false],
+        ['timestamp', [], []],
+        ['timestamp', [['id' => '11']], [['id' => '21', 'chapter_id' => '99'], ['id' => '22', 'chapter_id' => '11']]],
+        ['timestamp', [['id' => '11']], [['id' => '21', 'chapter_id' => '11'], ['id' => '22', 'chapter_id' => '11']], new PDOException('injected failure')],
+    ] as $responses) {
+        $events = [];
+        try {
+            (new Service(studioConnection($events, $responses)))->saveDraft(42, 7, [
+                'title' => 'Idea', 'revision' => str_repeat('a', 32), 'chapters_json' => json_encode($fixture)]);
+            throw new LogicException('Invalid content save succeeded.');
+        } catch (Exhibit\Exhibitions\SaveConflict|ValidationError|PDOException) {
+            check($events[0] === ['begin'] && end($events) === ['rollback']
+                && !in_array(['commit'], $events, true), 'Failed save was not rolled back.');
+        }
+    }
+};
+
+$tests['Studio subtitle and description preserve validation and exact Unicode limits'] = static function (): void {
+    foreach (['subtitle' => 100, 'description' => 10000] as $field => $limit) {
+        $text = str_repeat("\xc3\xa9", $limit);
+        check(Exhibit\Exhibitions\studioText($text, $limit, $field) === $text, 'Exact metadata limit rejected.');
+        foreach ([$text . 'x', [], "\xff", "bad\0text"] as $invalid) {
+            $calls = [];
+            try {
+                (new Service(exhibitionConnection($calls, [])))->saveDraft(42, 7, [
+                    'title' => 'Idea', $field => $invalid, 'revision' => str_repeat('a', 32)]);
+                throw new LogicException('Invalid metadata accepted.');
+            } catch (ValidationError $error) {
+                check(isset($error->errors[$field]) && $calls === [], 'Invalid metadata executed SQL or lost field error.');
+            }
+        }
+    }
+};
+
+$tests['Studio removes omitted chapters inside the same transaction without recreating content'] = static function (): void {
+    $events = [];
+    $service = new Service(studioConnection($events, ['timestamp', [['id' => '11'], ['id' => '12']],
+        [['id' => '21', 'chapter_id' => '11']], true, true]));
+    $service->saveDraft(42, 7, ['title' => 'Idea', 'revision' => str_repeat('a', 32), 'chapters_json' => '[]']);
+    check($events[5][1] === [11, 42] && $events[6][1] === [12, 42]
+        && str_starts_with($events[5][0], 'DELETE FROM public.chapters')
+        && end($events) === ['commit'], 'Chapter removal did not use scoped transactional deletion.');
+};
+
+$tests['Studio ordered reads use one owner-scoped snapshot and decode saved content'] = static function (): void {
+    $calls = [];
+    $fixture = contentFixture();
+    $row = ['id' => '42', 'cover' => null, 'chapters' => json_encode($fixture)];
+    $saved = (new Service(exhibitionConnection($calls, [$row])))->findOwned(42, 7, true);
+    check($saved['chapters'] === $fixture && count($calls) === 1 && $calls[0][1] === [42, 7]
+        && str_contains($calls[0][0], 'ORDER BY c.position') && str_contains($calls[0][0], 'ORDER BY b.position'),
+        'Studio loading lost ordering, ownership or snapshot consistency.');
+};
+
 $failed = 0;
 foreach ($tests as $name => $test) {
     try {

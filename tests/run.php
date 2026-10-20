@@ -93,6 +93,69 @@ $tests['Reject missing environment and insecure remote TLS'] = static function (
         rejects(array_replace($base, ['DB_SSLMODE' => $mode]));
     }
 };
+$tests['Development profile rejects production, test and alternate local database targets before connecting'] = static function (): void {
+    $local = ['APP_ENV' => 'development', 'DB_SSLMODE' => 'disable',
+        'DATABASE_URL' => 'postgresql://exhibit_dev_app:local-test-sentinel@127.0.0.1:55432/exhibit_development'];
+    check(str_contains(configuration($local)['dsn'], 'host=127.0.0.1;port=55432;dbname=exhibit_development;'),
+        'Dedicated development connection rejected.');
+    foreach ([
+        'postgresql://exhibit_dev_app:local-test-sentinel@db.example.test:55432/exhibit_development',
+        'postgresql://exhibit_dev_app:local-test-sentinel@localhost:55432/exhibit_development',
+        'postgresql://exhibit_dev_app:local-test-sentinel@127.0.0.1:5432/exhibit_development',
+        'postgresql://exhibit_dev_app:local-test-sentinel@127.0.0.1:55432/exhibit_test_example',
+        'postgresql://exhibit_dev_app:local-test-sentinel@127.0.0.1:55432/production',
+    ] as $url) {
+        rejects(array_replace($local, ['DATABASE_URL' => $url]));
+    }
+};
+$tests['Test profile cannot target persistent development or production databases'] = static function (): void {
+    $test = ['APP_ENV' => 'test', 'DB_SSLMODE' => 'disable',
+        'DATABASE_URL' => 'postgresql://test:local-test-sentinel@127.0.0.1:55432/exhibit_test_profile'];
+    check(str_contains(configuration($test)['dsn'], 'dbname=exhibit_test_profile'), 'Isolated test target rejected.');
+    foreach (['exhibit_development', 'production', 'exhibit_test', 'exhibit_test_'] as $name) {
+        rejects(array_replace($test, ['DATABASE_URL' => 'postgresql://test:local-test-sentinel@127.0.0.1:55432/' . $name]));
+    }
+    rejects(array_replace($test, ['DATABASE_URL' => 'postgresql://test:local-test-sentinel@db.example.test/exhibit_test_profile']));
+    rejects(array_replace($test, ['APP_ENV' => 'developmnt']));
+};
+$tests['PDO and CLI helpers enforce the process profile before connecting or migrating'] = static function (): void {
+    $saved = [];
+    foreach (['APP_ENV', 'DATABASE_URL', 'DB_SSLMODE'] as $name) $saved[$name] = getenv($name);
+    try {
+        putenv('APP_ENV=development');
+        putenv('DATABASE_URL=postgresql://test:local-test-sentinel@db.example.test:55432/exhibit_development');
+        putenv('DB_SSLMODE=disable');
+        try {
+            \Exhibit\Database\connect();
+            throw new RuntimeException('Development process opened a remote database.');
+        } catch (InvalidArgumentException $error) {
+            check(str_contains($error->getMessage(), 'Development connections require'), 'Profile was not checked before connecting.');
+        }
+        foreach ([
+            ['auth-migrate.php', '--check', '--database=exhibit_development'],
+            ['diagnose.php', '--database=exhibit_development'],
+            ['diagnose-native.php', '--database=exhibit_development', '--psql=missing-psql.exe'],
+        ] as $arguments) {
+            $script = array_shift($arguments);
+            $process = proc_open(
+                array_merge([PHP_BINARY, '-n', __DIR__ . '/../database/' . $script], $arguments),
+                [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
+                $pipes
+            );
+            check(is_resource($process), 'Could not start profile isolation CLI test.');
+            fclose($pipes[0]);
+            $output = stream_get_contents($pipes[1]);
+            $errors = stream_get_contents($pipes[2]);
+            fclose($pipes[1]);
+            fclose($pipes[2]);
+            check(proc_close($process) === 1 && str_contains($errors, 'Development connections require'),
+                'CLI omitted the development profile: ' . $script);
+            check(!str_contains($output . $errors, 'secret-sentinel'), 'CLI disclosed its connection credential.');
+        }
+    } finally {
+        foreach ($saved as $name => $value) putenv($value === false ? $name : $name . '=' . $value);
+    }
+};
 $tests['Exactly four tables with reviewed columns and types'] = static function (): void {
     $sql = file_get_contents(__DIR__ . '/../database/migrations/001_initial.sql');
     check($sql !== false, 'Migration unavailable.');

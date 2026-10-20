@@ -8,7 +8,7 @@ initialization procedure. Authentication now uses this foundation; see
 account/session behavior, encrypted email queue, and current test commands.
 Public content remains database-independent. Draft creation now persists exhibition
 metadata, the dashboard lists creator-owned records, and Studio loads and saves
-an owned draft's basic metadata. Publishing is still not implemented.
+an owned draft's metadata and ordered chapters/content. Publishing is still not implemented.
 Sections below describing disconnected screens or
 exactly four tables refer to the original foundation, not the authentication
 extension.
@@ -19,8 +19,9 @@ No schema adjustment or migration is required for this workflow.
 `backend/exhibitions.php` uses the existing PDO helper and native prepared
 statements. The form maps title to `title`, short introduction to `summary`,
 subject to `category`, and cover URL to `cover` as `{"url":"https://..."}`.
-Blank optional values become SQL NULL. `subtitle` and `description` are not
-collected. The trusted session supplies `owner_id`; the service generates a random
+Blank optional metadata values become SQL NULL. Studio also edits the existing
+`subtitle` and `description` columns; creation leaves them empty.
+The trusted session supplies `owner_id`; the service generates a random
 URL-safe slug and always inserts `status = 'draft'`, `published_at = NULL`.
 Slug conflicts alone receive a bounded retry. No child rows are created.
 
@@ -31,13 +32,15 @@ HTTP(S) cover URLs are length/scheme/credential validated on write and read and
 are loaded only by the browser, never fetched server-side. A failed image request
 leaves the existing decorative background; it does not affect the saved record.
 Creation and Studio saving use CSRF-protected POST/303 redirect; the dashboard is
-read-only. Studio updates only title, summary, category and cover through a native
-prepared statement. Its atomic WHERE predicate includes ID, owner, draft status,
+read-only. Studio updates editable metadata through native prepared statements.
+Its atomic WHERE predicate includes ID, owner, draft status,
 and a revision derived from the existing timestamp (`md5(updated_at::text)`).
 The revision is an opaque concurrency marker, not an authorization credential.
 Missing/stale revisions return 409; failed saves retain entered values and the
 original revision rather than silently rebasing onto a newer record.
-No migrations, child records, slug changes, or publication changes are involved.
+Content saves also update ordered chapter/block records in the same transaction
+as the parent metadata/revision. No migrations, slug changes, or publication
+changes are involved.
 Database errors produce a sanitized log and 503, not an empty/success fallback.
 
 `tests/exhibitions.php` is connection-free. Actual persistence/ownership/HTTP
@@ -127,9 +130,9 @@ Implementation details that make the proposal explicit:
   idempotent and contains no sample users, content, credentials, or destructive
   down migration. Re-running it fails rather than concealing schema drift.
 
-### Future content and authorization contract
+### Studio content and authorization contract
 
-JSONB is a storage shape, **not an HTML sanitizer**. Suggested future payloads:
+JSONB is a storage shape, **not an HTML sanitizer**. Studio payloads:
 
 ```json
 {"url":"https://images.example.test/cover.jpg","alt":"Descriptive plain text"}
@@ -137,19 +140,24 @@ JSONB is a storage shape, **not an HTML sanitizer**. Suggested future payloads:
 {"url":"https://images.example.test/figure.jpg","alt":"Description","caption":"Plain text","credit":"Source"}
 ```
 
-These are cover, text/artifact, and figure examples respectively, not an
-implemented API. Before accepting writes, validate an allowlist of fields for
-each block type, string lengths, and image URLs; reject arbitrary HTML, PHP,
-SVG markup, script/data URLs, and executable content. Render text with escaping,
-not raw HTML. Do not fetch creator-provided URLs server-side without SSRF defenses.
+These are cover, text/artifact, and figure examples respectively. Studio validates
+an allowlist of fields for each block type, string lengths, and HTTP(S) image URLs
+without credentials. Text is escaped and rendered literally, never executed as
+HTML, PHP or SVG; script/data URLs and unsupported block fields are rejected.
+Creator-provided URLs are not fetched server-side.
 Approved prototype artwork remains in the frontend assets; it is not migrated
 into executable database content.
 
-Every future Studio read/write must enforce exhibition ownership using the
+Every Studio read/write enforces exhibition ownership using the
 authenticated user, including chapter/block operations through their parent
 exhibition. Foreign keys alone do not provide tenant authorization. Authentication,
 authorization handlers, sessions, CSRF defense, validation, and persistence are
-deliberately not wired into these prototypes.
+wired into creator screens. Studio loads the parent revision and ordered children
+in one statement. A content save atomically checks owner/draft/revision, holds the
+parent row lock, and defers the existing position constraints within a transaction.
+Existing chapter IDs are checked against the exhibition, and block IDs against
+their chapter. Reordering preserves IDs and unexposed chapter fields; a failed
+write rolls back the entire tree and parent revision. No migration is required.
 
 ## Environment-driven PDO helper
 
@@ -167,6 +175,7 @@ path. Future SQL must use bound parameters for values and allowlisted identifier
 | `DATABASE_URL` | `postgresql://USER:URL_ENCODED_PASSWORD@HOST:5432/DATABASE` (also accepts `postgres://`). Required only when connecting. |
 | `DB_SSLMODE` | Defaults to `verify-full`: encrypts and validates both CA trust and hostname. Only alternative is explicitly `disable` for `localhost`, `127.0.0.1`, or `::1`. |
 | `DB_SSLROOTCERT` | Readable trusted PEM CA bundle path required with `verify-full`. The Docker image sets the Debian system bundle path. Use a trusted absolute Windows path for local PHP. |
+| `APP_ENV` | Optional existing-production-compatible profile: `development` allows only `127.0.0.1:55432/exhibit_development`; `test` allows only loopback `exhibit_test_SUFFIX`; `production` retains existing connection/TLS rules. Unknown profiles are rejected. |
 
 Use Render's exact database hostname, not an IP address or invented alias. If
 hostname verification fails, stop and check the provider's certificate/hostname
@@ -178,6 +187,12 @@ encode username/password components, especially `@`, `:`, `/`, `?`, `#`, `%`, an
 spaces. Database names are limited to letters, digits, underscore, hyphen, and dot.
 
 ### Local development
+
+For persistent fully functional development, use the approved
+[local launcher and runbook](local-development.md). It supplies isolated process
+configuration, local DPAPI secrets, loopback PostgreSQL, and explicit start/stop
+commands. Tests remain on disposable databases, not the persistent development
+database. The instructions below describe the original manual CLI configuration.
 
 Keep viewing the prototype without any database variables. To prepare an
 authorized local CLI connection, first create a **dedicated local PostgreSQL

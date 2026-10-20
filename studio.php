@@ -19,7 +19,7 @@ if ($id === null) {
 $creator = Auth\requireExhibitionOwner($id);
 Exhibitions\requireMethod(['GET', 'POST']);
 try {
-  $exhibition = Exhibitions\service()->findOwned($id, (int) $creator['id']);
+  $exhibition = Exhibitions\service()->findOwned($id, (int) $creator['id'], true);
   if ($exhibition === null) {
     Exhibitions\notFound();
   }
@@ -29,6 +29,8 @@ try {
 $values = [
   'title' => $exhibition['title'], 'summary' => $exhibition['summary'] ?? '',
   'subject' => $exhibition['category'] ?? '', 'cover' => $exhibition['cover']['url'] ?? '',
+  'subtitle' => $exhibition['subtitle'] ?? '', 'description' => $exhibition['description'] ?? '',
+  'chapters_json' => json_encode($exhibition['chapters'], JSON_THROW_ON_ERROR),
 ];
 $baseline = $values;
 $revision = Exhibitions\revision($exhibition);
@@ -36,9 +38,13 @@ $errors = [];
 $state = 'saved';
 $feedback = 'Draft saved.';
 $editable = $exhibition['status'] === 'draft';
+$jsonSave = $_SERVER['REQUEST_METHOD'] === 'POST'
+  && ($_SERVER['HTTP_ACCEPT'] ?? '') === 'application/json';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   foreach ($values as $field => $_) {
-    $values[$field] = Auth\post($field);
+    if ($field !== 'chapters_json' || array_key_exists($field, $_POST)) {
+      $values[$field] = Auth\post($field);
+    }
   }
   $revision = Auth\post('revision');
   $state = 'error';
@@ -47,9 +53,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $feedback = 'Your form expired. Your edits are still here; please try saving again.';
   } else {
     try {
-      Exhibitions\service()->saveDraft($id, (int) $creator['id'], $_POST);
-      $_SESSION['studio_saved'] = $id;
-      Auth\redirect('studio.php?id=' . $id);
+      $service = Exhibitions\service();
+      $service->saveDraft($id, (int) $creator['id'], $_POST);
+      if (!$jsonSave) {
+        $_SESSION['studio_saved'] = $id;
+        Auth\redirect('studio.php?id=' . $id);
+      }
+      $saved = $service->findOwned($id, (int) $creator['id'], true);
+      if ($saved === null) {
+        throw new RuntimeException('Saved draft could not be reloaded.');
+      }
+      header('Content-Type: application/json; charset=utf-8');
+      echo json_encode([
+        'message' => 'Draft saved successfully.',
+        'revision' => Exhibitions\revision($saved),
+        'values' => [
+          'title' => $saved['title'], 'summary' => $saved['summary'] ?? '',
+          'subject' => $saved['category'] ?? '', 'cover' => $saved['cover']['url'] ?? '',
+          'subtitle' => $saved['subtitle'] ?? '', 'description' => $saved['description'] ?? '',
+          'chapters_json' => json_encode($saved['chapters'], JSON_THROW_ON_ERROR),
+        ],
+      ], JSON_THROW_ON_ERROR);
+      exit;
     } catch (Exhibitions\ValidationError $error) {
       http_response_code(422);
       $errors = $error->errors;
@@ -64,6 +89,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       header('Retry-After: 60');
       $feedback = 'Save failed: exhibition services are temporarily unavailable. Your edits are still here; please try again later.';
     }
+  }
+  if ($jsonSave) {
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode(['message' => $feedback, 'errors' => $errors, 'editable' => $editable], JSON_THROW_ON_ERROR);
+    exit;
   }
 } elseif (($_SESSION['studio_saved'] ?? null) === $id) {
   unset($_SESSION['studio_saved']);
@@ -102,12 +132,12 @@ $previewCover = Exhibitions\validCoverUrl(trim($values['cover'])) ? trim($values
     </div>
   </header>
   <main class="studio-shell">
-    <div class="studio-warning" role="note"><span class="warning-dot"></span><strong>Private draft</strong><span>Edit your exhibition details and save when ready. Chapters and publishing are not available yet.</span></div>
+    <div class="studio-warning" role="note"><span class="warning-dot"></span><strong>Private draft</strong><span>Edit your exhibition and chapters, then save when ready. Publishing is not available yet.</span></div>
     <div class="studio-topline">
       <div>
         <p class="eyebrow">EXHIBITION STUDIO / <?= $id ?></p>
         <h1>Shape a <em>story.</em></h1>
-        <p>Shape your idea. Save your details privately.</p>
+        <p>Shape your story. Save your work privately.</p>
       </div>
       <div class="studio-actions"><span class="status-note" id="save-status" role="status" aria-live="polite" data-state="<?= $state ?>"><?= Auth\escape($feedback) ?></span><button type="button" id="preview-toggle" class="studio-btn" aria-controls="studio-preview" aria-expanded="true">Hide preview</button><button type="submit" form="studio-form" id="save-draft" class="studio-btn"<?= !$editable ? ' disabled' : '' ?>>Save Draft</button></div>
     </div>
@@ -122,8 +152,9 @@ $previewCover = Exhibitions\validCoverUrl(trim($values['cover'])) ? trim($values
           <h2>Chapters</h2>
           <p>The journey your visitors follow.</p>
         </div>
-        <div class="chapter-list" id="chapter-list"><p class="editor-note">Chapter tools are coming in a later milestone. Creating a draft does not add chapters.</p></div>
-        <button class="add-chapter" type="button" id="add-chapter" disabled title="Chapter editing is not available yet"><span>＋</span> Add a chapter</button>
+        <button class="chapter-choice active" type="button" id="edit-details" aria-current="true">Exhibition details</button>
+        <div class="chapter-list" id="chapter-list"><p class="editor-note">No chapter selected. Use JavaScript to organize chapters and content.</p></div>
+        <button class="add-chapter" type="button" id="add-chapter" disabled><span>＋</span> Add a chapter</button>
         <div class="side-footnote"><span>✳</span>
           <p>Each chapter can hold narrative text, visual material, and artifacts.</p>
         </div>
@@ -136,11 +167,18 @@ $previewCover = Exhibitions\validCoverUrl(trim($values['cover'])) ? trim($values
         <form class="editor-inner" id="studio-form" method="post" action="studio.php?id=<?= $id ?>" novalidate data-baseline="<?= Auth\escape(json_encode($baseline, JSON_THROW_ON_ERROR)) ?>">
           <input type="hidden" name="csrf" value="<?= Auth\escape($_SESSION['csrf']) ?>">
           <input type="hidden" name="revision" value="<?= Auth\escape($revision) ?>">
+          <input type="hidden" id="exhibition-chapters_json" name="chapters_json" value="<?= Auth\escape($values['chapters_json']) ?>">
+          <p class="field-error" id="content-error" role="alert"><?= Auth\escape($errors['content'] ?? '') ?></p>
+          <div id="details-editor">
           <div class="chapter-overline"><span>EXHIBITION INFORMATION</span><span class="working-tag"><?= Auth\escape(strtoupper($exhibition['status'])) ?></span></div>
           <label for="exhibition-title">Exhibition title</label><input id="exhibition-title" name="title" class="title-field" type="text" maxlength="100" required value="<?= Auth\escape($values['title']) ?>" aria-invalid="<?= isset($errors['title']) ? 'true' : 'false' ?>" aria-describedby="title-error">
           <p class="field-error" id="title-error"><?= Auth\escape($errors['title'] ?? '') ?></p>
+          <label for="exhibition-subtitle">Subtitle <span class="optional">optional</span></label><input id="exhibition-subtitle" name="subtitle" type="text" maxlength="100" value="<?= Auth\escape($values['subtitle']) ?>" aria-invalid="<?= isset($errors['subtitle']) ? 'true' : 'false' ?>" aria-describedby="subtitle-error">
+          <p class="field-error" id="subtitle-error"><?= Auth\escape($errors['subtitle'] ?? '') ?></p>
           <label for="exhibition-summary">A short introduction</label><textarea id="exhibition-summary" name="summary" rows="5" maxlength="320" placeholder="What will visitors discover?" aria-invalid="<?= isset($errors['summary']) ? 'true' : 'false' ?>" aria-describedby="summary-error"><?= Auth\escape($values['summary']) ?></textarea>
           <p class="field-error" id="summary-error"><?= Auth\escape($errors['summary'] ?? '') ?></p>
+          <label for="exhibition-description">Description <span class="optional">optional</span></label><textarea id="exhibition-description" name="description" rows="6" maxlength="10000" aria-invalid="<?= isset($errors['description']) ? 'true' : 'false' ?>" aria-describedby="description-error"><?= Auth\escape($values['description']) ?></textarea>
+          <p class="field-error" id="description-error"><?= Auth\escape($errors['description'] ?? '') ?></p>
           <label for="exhibition-subject">Subject</label><select id="exhibition-subject" name="subject" aria-invalid="<?= isset($errors['subject']) ? 'true' : 'false' ?>" aria-describedby="subject-error">
             <option value="">Choose a subject...</option>
             <?php foreach (Exhibitions\SUBJECTS as $subject): ?>
@@ -150,9 +188,11 @@ $previewCover = Exhibitions\validCoverUrl(trim($values['cover'])) ? trim($values
           <p class="field-error" id="subject-error"><?= Auth\escape($errors['subject'] ?? '') ?></p>
           <label for="exhibition-cover">Cover image URL</label><input id="exhibition-cover" name="cover" type="url" maxlength="2048" value="<?= Auth\escape($values['cover']) ?>" placeholder="https://example.com/photo.jpg" aria-invalid="<?= isset($errors['cover']) ? 'true' : 'false' ?>" aria-describedby="cover-help cover-error">
           <p class="field-error" id="cover-error"><?= Auth\escape($errors['cover'] ?? '') ?></p>
-          <p class="editor-note" id="cover-help">Use an HTTP or HTTPS image URL you have permission to display. Preview changes are not saved until you choose Save Draft. Chapters and content blocks are not editable yet.</p>
+          <p class="editor-note" id="cover-help">Use an HTTP or HTTPS image URL you have permission to display. Preview changes are not saved until you choose Save Draft.</p>
+          </div>
+          <div id="content-editor" hidden></div>
           <?php if (!$editable): ?><p class="editor-note">Copy any unsaved edits before <a href="studio.php?id=<?= $id ?>">reopening Studio</a> to review the saved version.</p><?php endif; ?>
-          <noscript><p class="editor-note">Save Draft works without JavaScript. Live preview and unsaved-change warnings require JavaScript.</p></noscript>
+          <noscript><p class="editor-note">Save Draft and metadata editing work without JavaScript. Chapter editing, live preview, and unsaved-change warnings require JavaScript. Existing content is preserved when saving metadata.</p></noscript>
         </form>
       </section>
       <aside class="studio-preview" id="studio-preview" aria-label="Live exhibition preview">
@@ -170,6 +210,7 @@ $previewCover = Exhibitions\validCoverUrl(trim($values['cover'])) ? trim($values
             <p class="preview-eyebrow" id="pv-eyebrow"><?= Auth\escape($values['subject'] ?: 'YOUR EXHIBITION') ?></p>
             <h3 id="pv-title"><?= Auth\escape($values['title']) ?></h3>
             <p id="pv-intro" class="preview-intro"><?= Auth\escape($values['summary'] ?: 'No introduction yet.') ?></p>
+            <div id="pv-blocks"></div>
             <p class="preview-end">Every discovery starts with a question. <span>✳</span></p>
           </div>
         </div>

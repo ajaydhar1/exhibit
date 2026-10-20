@@ -53,11 +53,7 @@ function runNativeDiagnostic(array $arguments): int
     }
     try {
         $expectedDatabase = substr($arguments[0], 11);
-        $environment = nativeEnvironment([
-            'DATABASE_URL' => getenv('DATABASE_URL'),
-            'DB_SSLMODE' => getenv('DB_SSLMODE'),
-            'DB_SSLROOTCERT' => getenv('DB_SSLROOTCERT'),
-        ], $expectedDatabase, getenv());
+        $environment = nativeEnvironment(\Exhibit\Database\processEnvironment(), $expectedDatabase, getenv());
         $psql = substr($arguments[1], 7);
         if (!is_file($psql)) {
             throw new RuntimeException('The specified native psql executable is not available.');

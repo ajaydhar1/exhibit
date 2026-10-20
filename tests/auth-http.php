@@ -13,11 +13,12 @@ final class AuthHttpClient
     public string $cookie = '';
     public function __construct(private string $base) {}
 
-    public function request(string $page, ?array $fields = null, ?string $method = null): array
+    public function request(string $page, ?array $fields = null, ?string $method = null, bool $json = false): array
     {
         $context = stream_context_create(['http' => [
             'method' => $method ?? ($fields === null ? 'GET' : 'POST'),
-            'header' => "Content-Type: application/x-www-form-urlencoded\r\nCookie: " . $this->cookie . "\r\n",
+            'header' => "Content-Type: application/x-www-form-urlencoded\r\nCookie: " . $this->cookie . "\r\n"
+                . ($json ? "Accept: application/json\r\n" : ''),
             'content' => $fields === null ? '' : http_build_query($fields),
             'ignore_errors' => true, 'follow_location' => 0, 'timeout' => 15,
         ]]);
@@ -141,6 +142,7 @@ function runAuthHttp(?PDO $db = null): int
                 check($client->request($page)['status'] === 200, 'Verified creator denied workspace.');
             }
             $draftId = runExhibitionHttp($client, $db, $base);
+            $savedContent = studioSavedContent($client->request('studio.php?id=' . $draftId));
             $count++;
             $duplicate = new AuthHttpClient($base);
             $csrf = $duplicate->csrf('register.php');
@@ -161,8 +163,11 @@ function runAuthHttp(?PDO $db = null): int
             check($client->request('sign-in.php', ['csrf' => $csrf, 'email' => $email, 'password' => $password])['status'] === 303, 'Valid login failed.');
             check($client->cookie !== $oldCookie, 'Login session ID not rotated.');
             $reopened = $client->request('studio.php?id=' . $draftId);
-            check($reopened['status'] === 200 && str_contains($reopened['body'], Exhibit\Auth\escape('Updated <script>metadata</script>')),
+            check($reopened['status'] === 200 && str_contains($reopened['body'], Exhibit\Auth\escape('Updated <script>metadata</script>'))
+                && str_contains($reopened['body'], 'HTTP chapter') && str_contains($reopened['body'], 'HTTP artifact'),
                 'New authenticated session could not reopen saved exhibition.');
+            check(studioSavedContent($reopened) === $savedContent,
+                'A new sign-in session changed saved chapter/block IDs, values or ordering.');
             $count++;
             $csrf = $duplicate->csrf('forgot-password.php');
             check($duplicate->request('forgot-password.php', ['csrf' => $csrf, 'email' => $email])['status'] === 303, 'Recovery request failed.');
