@@ -312,6 +312,33 @@ trust. Certificate trust is established only by a successful `verify-full` PDO
 connection. A connection success is not permission to initialize: finish the
 read-only preflight, review the plan/checksum, and obtain explicit apply approval.
 
+### Connection-only TLS diagnostic
+
+For a deployed container whose ordinary diagnostic reports only a generic TLS
+failure, run `php database/diagnose-tls.php` from that Web Service's Render Shell.
+This CLI-only command reuses the configured URL, credentials, CA file and PDO
+options, requires `verify-full`, and attempts one connection without executing SQL.
+It does not call the application's session-initializing connection helper, change
+environment variables, run migrations, or send email. HTTP execution returns 404.
+
+Only fixed labels are emitted: `TLS_CONNECTION_OK` (exit 0), or a failure label
+(exit 1). Failure labels distinguish `TLS_CERTIFICATE_TRUST`,
+`TLS_HOSTNAME_MISMATCH`, `TLS_CA_LOADING`, `TLS_PROTOCOL_NEGOTIATION`,
+`TLS_TRANSPORT_FAILURE`, `TLS_PEER_INTERNAL_ALERT`, `TLS_PEER_CERTIFICATE_ALERT`,
+`TLS_HANDSHAKE_UNSPECIFIED`, and `TLS_FAILURE_UNCLASSIFIED`. Input/runtime failures
+use `TLS_ARGUMENTS_REJECTED`, `TLS_VERIFICATION_REQUIRED`,
+`TLS_CONFIGURATION_REJECTED`, or `TLS_RUNTIME_FAILURE`.
+Peer alerts describe the peer's report, not proof of a local certificate problem;
+generic/unknown labels must not be treated as a confirmed root cause.
+Raw exceptions, certificate contents and connection details are never printed or
+logged by this command. Normal application behavior is unchanged.
+
+A successful connection confirms configured verified-TLS authentication, not
+application table permissions or schema readiness. Connection attempts can create
+normal provider-side connection logs. Run it inside Render to test Render-origin
+connectivity, not from a local terminal. No live check is authorized by the
+offline test command `php tests/diagnose-tls.php`.
+
 ### Native-client comparison for an ambiguous PDO failure
 
 Local inspection found PHP 8.2.27 loading **libpq 11.4**, while the installed
