@@ -86,18 +86,106 @@ test('Creation blocks blank titles/native validation failures, but allows native
   assert.equal(button.disabled, false);
 });
 
-test('Read-only Studio toggles preview without editor/sample initialization', () => {
-  const elements = Object.fromEntries(['preview-toggle', 'studio-layout', 'studio-preview'].map(id => [id, element()]));
+function studioPage(state = 'saved') {
+  const ids = ['preview-toggle', 'studio-layout', 'studio-preview', 'studio-form', 'save-status',
+    'save-draft', 'exhibition-title', 'exhibition-summary', 'exhibition-subject', 'exhibition-cover',
+    'pv-title', 'pv-intro', 'pv-eyebrow', 'pv-category', 'preview-art', 'preview-orbit', 'project-title'];
+  const elements = Object.fromEntries(ids.map(id => [id, element()]));
+  const baseline = {title: 'Saved title', summary: 'Saved intro', subject: 'History', cover: ''};
+  for (const [name, value] of Object.entries(baseline)) elements[`exhibition-${name}`].value = value;
+  elements['studio-form'].dataset = {baseline: JSON.stringify(baseline)};
+  elements['studio-form'].reportValidity = () => true;
+  elements['save-status'].dataset = {state};
+  elements['save-status'].textContent = state === 'error' ? 'Server save error; edits retained.' : 'Draft saved successfully.';
+  const window = element();
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, '..', 'assets', 'studio.js'), 'utf8'), {
-    document: {getElementById: id => {
-      assert.ok(elements[id], 'Studio attempted to initialize an editing surface');
-      return elements[id];
-    }},
+    document: {getElementById: id => elements[id]}, window, URL, TextEncoder, TypeError,
   });
+  return {elements, window};
+}
+
+test('Studio preserves preview toggle and starts from saved values', () => {
+  const {elements} = studioPage();
+  assert.equal(elements['pv-title'].textContent, 'Saved title');
+  assert.equal(elements['save-status'].dataset.state, 'saved');
   elements['preview-toggle'].listeners.click();
   assert.equal(elements['studio-preview'].hidden, true);
   assert.equal(elements['preview-toggle'].attributes['aria-expanded'], 'false');
   elements['preview-toggle'].listeners.click();
   assert.equal(elements['studio-preview'].hidden, false);
   assert.equal(elements['preview-toggle'].textContent, 'Hide preview');
+});
+
+test('Studio previews all metadata safely, tracks unsaved/reverted edits and warns on leaving', () => {
+  const {elements, window} = studioPage();
+  elements['exhibition-title'].value = '<img src=x onerror=alert(1)>';
+  elements['exhibition-summary'].value = 'Live introduction';
+  elements['exhibition-subject'].value = 'Technology';
+  elements['exhibition-cover'].value = 'https://example.test/image.jpg';
+  elements['exhibition-title'].listeners.input();
+  assert.equal(elements['pv-title'].textContent, '<img src=x onerror=alert(1)>');
+  assert.equal(elements['project-title'].textContent, elements['pv-title'].textContent);
+  assert.equal(elements['pv-intro'].textContent, 'Live introduction');
+  assert.equal(elements['pv-eyebrow'].textContent, 'Technology');
+  assert.equal(elements['pv-category'].textContent, 'Technology');
+  assert.equal(elements['preview-orbit'].hidden, true);
+  assert.match(elements['preview-art'].style.backgroundImage, /https:\/\/example.test/);
+  assert.equal(elements['save-status'].dataset.state, 'unsaved');
+  let warned = false;
+  window.listeners.beforeunload({preventDefault() { warned = true; }});
+  assert.equal(warned, true);
+  for (const url of ['javascript:alert(1)', 'data:image/svg+xml,x', 'https://user:pass@example.test/a',
+    '//example.test/a', 'https://example.test/a\nb', 'bad', `https://example.test/${'a'.repeat(2048)}`]) {
+    elements['exhibition-cover'].value = url;
+    elements['exhibition-cover'].listeners.input();
+    assert.equal(elements['preview-art'].style.backgroundImage, '');
+    assert.equal(elements['preview-orbit'].hidden, false);
+  }
+  for (const [name, value] of Object.entries(JSON.parse(elements['studio-form'].dataset.baseline))) {
+    elements[`exhibition-${name}`].value = value;
+  }
+  elements['exhibition-title'].listeners.input();
+  assert.equal(elements['save-status'].dataset.state, 'saved');
+  warned = false;
+  window.listeners.beforeunload({preventDefault() { warned = true; }});
+  assert.equal(warned, false);
+});
+
+test('Studio validates, shows saving, blocks duplicate submit and restores after back navigation', () => {
+  const {elements, window} = studioPage();
+  let prevented = false;
+  const submit = () => elements['studio-form'].listeners.submit({preventDefault() { prevented = true; }});
+  elements['exhibition-title'].value = ' ';
+  submit();
+  assert.equal(prevented, true);
+  assert.equal(elements['save-status'].dataset.state, 'error');
+  elements['exhibition-title'].value = 'Edited';
+  elements['studio-form'].reportValidity = () => false;
+  prevented = false;
+  submit();
+  assert.equal(prevented, true);
+  elements['studio-form'].reportValidity = () => true;
+  prevented = false;
+  submit();
+  assert.equal(prevented, false);
+  assert.equal(elements['save-draft'].disabled, true);
+  assert.equal(elements['save-status'].dataset.state, 'saving');
+  window.listeners.beforeunload({preventDefault() { assert.fail('Saving must allow navigation'); }});
+  submit();
+  assert.equal(prevented, true);
+  window.listeners.pageshow();
+  assert.equal(elements['save-draft'].disabled, false);
+  assert.equal(elements['save-status'].dataset.state, 'unsaved');
+});
+
+test('Studio keeps server errors visible while previewing retained input and blocks conflicts', () => {
+  const {elements} = studioPage('error');
+  elements['exhibition-title'].value = 'Retained edit';
+  elements['exhibition-title'].listeners.input();
+  assert.equal(elements['pv-title'].textContent, 'Retained edit');
+  assert.equal(elements['save-status'].textContent, 'Server save error; edits retained.');
+  elements['save-draft'].disabled = true;
+  let prevented = false;
+  elements['studio-form'].listeners.submit({preventDefault() { prevented = true; }});
+  assert.equal(prevented, true);
 });

@@ -42,7 +42,7 @@ try {
     </div>
   </header>
   <main class="workspace shell">
-    <div class="prototype-banner" role="note"><span class="banner-indicator"></span><strong>Your private workspace</strong><span>Drafts are saved to your account. Studio editing and publishing are not available yet.</span></div>
+    <div class="prototype-banner" role="note"><span class="banner-indicator"></span><strong>Your private workspace</strong><span>Drafts are saved to your account. Edit their details in Studio; publishing is not available yet.</span></div>
     <section class="workspace-intro" aria-labelledby="workspace-title">
       <div>
         <p class="eyebrow"><span class="eyebrow-line"></span> YOUR CREATIVE SPACE / 001</p>
@@ -89,7 +89,7 @@ try {
     <aside class="studio-note"><span class="studio-note-icon" aria-hidden="true">✳</span>
       <div>
         <h2>Thoughtfully made, chapter by chapter.</h2>
-        <p>Your exhibition ideas are saved. Open a draft in Studio to see its details; chapter editing and publishing will follow in a later milestone.</p>
+        <p>Your exhibition ideas are saved. Open a draft in Studio to edit its details; chapter editing and publishing will follow in a later milestone.</p>
       </div>
     </aside>
   </main>

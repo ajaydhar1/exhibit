@@ -161,7 +161,7 @@ function runAuthHttp(?PDO $db = null): int
             check($client->request('sign-in.php', ['csrf' => $csrf, 'email' => $email, 'password' => $password])['status'] === 303, 'Valid login failed.');
             check($client->cookie !== $oldCookie, 'Login session ID not rotated.');
             $reopened = $client->request('studio.php?id=' . $draftId);
-            check($reopened['status'] === 200 && str_contains($reopened['body'], Exhibit\Auth\escape('Private <script>alert("draft")</script> idea')),
+            check($reopened['status'] === 200 && str_contains($reopened['body'], Exhibit\Auth\escape('Updated <script>metadata</script>')),
                 'New authenticated session could not reopen saved exhibition.');
             $count++;
             $csrf = $duplicate->csrf('forgot-password.php');

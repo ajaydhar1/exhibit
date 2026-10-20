@@ -7,8 +7,8 @@ initialization procedure. Authentication now uses this foundation; see
 [Authentication setup](authentication.md) for the new approval-gated migration,
 account/session behavior, encrypted email queue, and current test commands.
 Public content remains database-independent. Draft creation now persists exhibition
-metadata, the dashboard lists creator-owned records, and read-only Studio loads a
-saved exhibition. Studio editing and publishing are still not implemented.
+metadata, the dashboard lists creator-owned records, and Studio loads and saves
+an owned draft's basic metadata. Publishing is still not implemented.
 Sections below describing disconnected screens or
 exactly four tables refer to the original foundation, not the authentication
 extension.
@@ -30,7 +30,14 @@ fetches metadata with both exhibition and owner IDs. Text is escaped on output;
 HTTP(S) cover URLs are length/scheme/credential validated on write and read and
 are loaded only by the browser, never fetched server-side. A failed image request
 leaves the existing decorative background; it does not affect the saved record.
-Creation uses CSRF-protected POST/303 redirect; Studio and dashboard are read-only.
+Creation and Studio saving use CSRF-protected POST/303 redirect; the dashboard is
+read-only. Studio updates only title, summary, category and cover through a native
+prepared statement. Its atomic WHERE predicate includes ID, owner, draft status,
+and a revision derived from the existing timestamp (`md5(updated_at::text)`).
+The revision is an opaque concurrency marker, not an authorization credential.
+Missing/stale revisions return 409; failed saves retain entered values and the
+original revision rather than silently rebasing onto a newer record.
+No migrations, child records, slug changes, or publication changes are involved.
 Database errors produce a sanitized log and 503, not an empty/success fallback.
 
 `tests/exhibitions.php` is connection-free. Actual persistence/ownership/HTTP

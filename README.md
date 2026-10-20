@@ -39,14 +39,29 @@ your saved exhibitions, newest-updated first, or an empty state with a creation
 link. Cards show persisted metadata, draft status, and a derived chapter count.
 The creator screens remain private, `no-store`, and `noindex`.
 
-## Exhibition Studio (read-only)
+## Exhibition Studio metadata editing
 
 Use **Open Studio** on a dashboard card to open `studio.php?id=ID`. Studio loads
 that creator-owned exhibition's saved title, introduction, subject, cover, and
-status. Refreshing, leaving, or signing in again does not discard saved details.
+status. Edit the title, introduction, subject, and cover URL using the existing
+three-column Studio. The live preview changes immediately, without a database
+write. **Save Draft** persists only these four fields to the same record; it
+never changes ownership, publication state, chapters, or content blocks.
+Refreshing, leaving, or signing in again does not discard saved details.
 Bare `studio.php` redirects verified creators to the dashboard; malformed,
-nonexistent, and foreign-owned IDs return the same 404. Studio is read-only:
-metadata editing, chapter/block editing, and publishing remain unavailable.
+nonexistent, and foreign-owned IDs return the same 404. Saving requires verified
+creator authentication, ownership, session CSRF, and server-side validation.
+It works without JavaScript using POST/303/GET. Validation and service errors
+retain entered values, with field errors and an explicit status message.
+The interface distinguishes unsaved changes, saving, saved, and save errors;
+JavaScript also warns before leaving unsaved edits.
+
+An atomic owner/draft/version predicate uses the existing `updated_at` timestamp.
+A stale or missing revision returns 409 rather than overwriting a newer save.
+Copy unsaved edits and reopen Studio to review the latest values; there is no
+force-overwrite control. Published exhibitions cannot be saved through this action.
+No schema changes or migrations are required. Chapter/block editing and publishing
+remain unavailable.
 
 
 ## Create Exhibition
@@ -126,14 +141,36 @@ URL/ID boundaries, owner-scoped SQL bindings, slug retries, and explicit failure
 using scripted PDO doubles. Use the isolated PHP runtime/extension options in
 [Authentication setup](docs/authentication.md) for session/HTTP suites.
 The optional Node built-in test runner checks preview, native form submission,
-validation feedback, and read-only Studio behavior without packages or a database.
+validation feedback, safe live metadata previews, unsaved/saving/error states,
+navigation warnings, and duplicate-submit prevention without packages or a database.
 
 The extended `tests\auth-postgres.php --run` suite covers actual draft persistence,
-two-creator isolation, creation/dashboard/Studio HTTP flows, CSRF, validation,
+two-creator isolation, creation and metadata-saving/dashboard/Studio HTTP flows,
+CSRF, validation, database-error input retention, stale/published-save rejection,
 refresh/reopen, and a new sign-in session. It requires an **empty disposable
 loopback `exhibit_test_SUFFIX` database**, installs the test schema using both
 existing migrations, and removes it afterward. It must not run while migration or
 database-writing approval is withheld, or against development/production.
+
+### Controlled metadata browser verification (approval required for writes)
+
+Use the existing Exhibit Test Creator and draft **ID 1**. Do not create an account
+or another exhibition, send email, or change environment settings.
+
+1. Sign in only after approval: sign-in can update account/rate-limit records.
+   Open `studio.php?id=1` and record the current four metadata values privately.
+2. Before approving a save, edit the fields in the browser only. Confirm live text,
+   subject and cover preview, **Unsaved changes**, preview hide/show, and unchanged
+   desktop/mobile layout. Do not click **Save Draft** yet.
+3. After separate approval, save one agreed metadata change. Confirm **Saving**
+   then **Draft saved successfully**; refresh, reopen from My Exhibitions, and
+   logout/sign in to check all four persisted values and draft status.
+4. After approval for a second save, use two tabs with the same starting revision:
+   save in one, then attempt a stale save in the other. Expect a conflict with
+   retained edits, not an overwrite. Restore original values only with approval.
+
+All destructive, invalid-input, cross-account, and database-failure scenarios
+belong in the disposable automated environment, not the existing live draft.
 ### Milestone validation
 
 The approved isolated PostgreSQL 18.6 run passed: 16 foundation checks, eight
@@ -147,3 +184,28 @@ creation, saved metadata, dashboard listing with zero chapters, refresh, and
 reopening in read-only Studio. Desktop (1440px) and mobile (390px) checks preserved
 the existing design without horizontal page overflow. No real account details,
 credentials, or session artifacts are recorded here.
+
+The metadata-editing milestone passed 54 offline baseline tests, nine exhibition
+unit groups, six Node UI tests, ten auth unit/session groups, and 18
+database-independent HTTP scenarios. A fresh disposable loopback PostgreSQL 18.6
+cluster passed eight auth service groups, exhibition creation/update checks,
+metadata HTTP checks (including simulated 503 and stale revisions), and 23
+database-backed auth HTTP scenarios. Its schema and cluster were removed afterward.
+A database-free browser fixture rendered the actual Studio template and assets:
+live text/subject/cover previews, safe text rendering, dirty status and preview
+toggling worked, with three desktop columns at 1440px and no horizontal overflow
+at 1440px or 390px. No fixture form was submitted.
+
+The separately approved controlled metadata browser test also passed. Read-only
+preflight confirmed the configured database, verified TLS, verified creator and
+private-draft ownership. All four live previews updated without saving; a separate
+GET still returned the original saved metadata. Following explicit approval, one
+guarded Save Draft attempt succeeded. Refresh, My Exhibitions and reopening Studio
+retained all approved values, draft status and zero chapters. Desktop (1440px)
+and mobile (390px) checks preserved the existing design without horizontal
+overflow; the cover loaded and preview hide/show worked. Further saves were
+blocked afterward. No additional account/exhibition creation, emails, migrations,
+publishing or deployment occurred. Logout/login persistence was covered by the
+disposable automated suite, not repeated during this single-save browser test.
+No private account details, credentials, saved test values or session artifacts
+are recorded here.

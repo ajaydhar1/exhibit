@@ -22,6 +22,13 @@ final class ValidationError extends RuntimeException
     }
 }
 
+final class SaveConflict extends RuntimeException {}
+
+function revision(array $exhibition): string
+{
+    return md5($exhibition['updated_at']);
+}
+
 function validCoverUrl(string $value): bool
 {
     if (strlen($value) > 2048 || preg_match('/[\x00-\x20\x7f]/', $value)
@@ -115,6 +122,28 @@ final class Service
         );
         $statement->execute([$ownerId]);
         return array_map([$this, 'decodeCover'], $statement->fetchAll());
+    }
+
+    public function saveDraft(int $exhibitionId, int $ownerId, array $input): void
+    {
+        $values = validate($input);
+        $revision = $input['revision'] ?? null;
+        if (!is_string($revision) || preg_match('/\A[a-f0-9]{32}\z/', $revision) !== 1) {
+            throw new SaveConflict('The saved version is missing or invalid. Reopen Studio before saving.');
+        }
+        $statement = $this->db->prepare(
+            "UPDATE public.exhibitions SET title = ?, summary = ?, category = ?, cover = CAST(? AS jsonb)
+             WHERE id = ? AND owner_id = ? AND status = 'draft' AND md5(updated_at::text) = ?
+             RETURNING updated_at"
+        );
+        $statement->execute([
+            $values['title'], $values['summary'], $values['category'],
+            $values['cover'] === null ? null : json_encode($values['cover'], JSON_THROW_ON_ERROR),
+            $exhibitionId, $ownerId, $revision,
+        ]);
+        if ($statement->fetchColumn() === false) {
+            throw new SaveConflict('This exhibition changed since you opened it or is no longer a draft. Copy your edits, then reopen Studio to review the latest version.');
+        }
     }
 
     public function findOwned(int $exhibitionId, int $ownerId): ?array

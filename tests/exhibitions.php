@@ -156,8 +156,38 @@ $tests['Invalid creation never executes SQL'] = static function (): void {
         check($calls === [], 'Invalid creation executed SQL.');
     }
 };
+$tests['Draft saving binds only metadata and atomically checks owner, draft and revision'] = static function (): void {
+    $calls = [];
+    $revision = str_repeat('a', 32);
+    $service = new Service(exhibitionConnection($calls, ['2026-10-19 12:00:00+00']));
+    $service->saveDraft(42, 7, ['title' => ' Edited ', 'summary' => ' Intro ', 'subject' => 'History',
+        'cover' => 'https://example.test/a.jpg', 'revision' => $revision,
+        'owner_id' => 8, 'status' => 'published', 'published_at' => '2026-01-01', 'chapters' => []]);
+    [$sql, $params] = $calls[0];
+    check($params === ['Edited', 'Intro', 'History', '{"url":"https:\/\/example.test\/a.jpg"}', 42, 7, $revision], 'Save binding incorrect.');
+    check(str_contains($sql, "id = ? AND owner_id = ? AND status = 'draft' AND md5(updated_at::text) = ?")
+        && !str_contains(explode('WHERE', $sql)[0], 'owner_id =')
+        && !str_contains(explode('WHERE', $sql)[0], 'status =')
+        && !str_contains($sql, 'INSERT'), 'Save modifies trusted fields or lacks atomic guards.');
+    foreach ([null, [], 'invalid', str_repeat('a', 32)] as $version) {
+        $calls = [];
+        try {
+            (new Service(exhibitionConnection($calls, [false])))->saveDraft(42, 7, ['title' => 'Idea', 'revision' => $version]);
+            throw new LogicException('Rejected or stale revision reported success.');
+        } catch (Exhibit\Exhibitions\SaveConflict) {
+            check(count($calls) === ($version === str_repeat('a', 32) ? 1 : 0), 'Invalid revision executed SQL.');
+        }
+    }
+    $calls = [];
+    try {
+        (new Service(exhibitionConnection($calls, [])))->saveDraft(42, 7, ['title' => '', 'revision' => $revision]);
+        throw new LogicException('Invalid edit accepted.');
+    } catch (ValidationError) {
+        check($calls === [], 'Invalid edit executed SQL.');
+    }
+};
 $tests['Database failures propagate rather than returning empty or success'] = static function (): void {
-    foreach (['create', 'list', 'find'] as $operation) {
+    foreach (['create', 'list', 'find', 'save'] as $operation) {
         $calls = [];
         $failure = new PDOException('test-only failure');
         $service = new Service(exhibitionConnection($calls, [$failure]));
@@ -166,6 +196,7 @@ $tests['Database failures propagate rather than returning empty or success'] = s
                 'create' => $service->createDraft(7, ['title' => 'Idea']),
                 'list' => $service->listOwned(7),
                 'find' => $service->findOwned(42, 7),
+                'save' => $service->saveDraft(42, 7, ['title' => 'Idea', 'revision' => str_repeat('a', 32)]),
             };
         } catch (PDOException $error) {
             check($error === $failure && count($calls) === 1, 'Database failure was swallowed or retried.');

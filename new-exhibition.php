@@ -56,7 +56,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </div>
   </header>
   <main class="create-shell shell">
-    <div class="create-note" role="note"><span class="note-spark">✳</span><strong>Begin a draft</strong><span>Save your exhibition privately. Studio editing and publishing are not available yet.</span></div>
+    <div class="create-note" role="note"><span class="note-spark">✳</span><strong>Begin a draft</strong><span>Save your exhibition privately, then edit its details in Studio. Publishing is not available yet.</span></div>
     <div class="create-intro">
       <p class="eyebrow"><span class="eyebrow-line"></span> EXHIBITION STUDIO / GETTING STARTED</p>
       <h1>Every exhibition<br>begins with <em>curiosity.</em></h1>

@@ -7,8 +7,9 @@ screens and styling. All registered accounts are creators. As approved, creators
 must verify their email before opening `my-exhibitions.php`, `new-exhibition.php`,
 or `studio.php`. Public exhibition pages require neither login nor a database.
 Verified creators can now create persistent exhibition drafts, list only their own
-records, and reopen persisted information in read-only Studio. Studio editing and
-publishing remain unimplemented. No role system or content-model changes are introduced.
+records, and edit their basic metadata in Studio. Saving is owner-scoped,
+CSRF-protected, draft-only, and revision-checked. Publishing remains unimplemented.
+No role system or content-model changes are introduced.
 
 ## Required web environment
 
@@ -180,7 +181,12 @@ startup or blindly rerun a migration after an ambiguous commit.
   the same 404. Studio calls the ownership guard and loads metadata with both ID
   and owner predicates. The dashboard filters by the session-derived creator ID;
   draft creation never trusts owner/status/slug/publication fields from the client.
-  Creation is CSRF-protected POST; Studio and dashboard accept only GET. Bare Studio
+  Creation and Studio metadata saving use CSRF-protected POST with a success
+  redirect; the dashboard accepts only GET. Studio updates only title, summary,
+  category and cover, with atomic owner/draft/revision predicates. Existing
+  `updated_at` supports stale-save rejection without a migration. Validation,
+  conflict and save-service failures retain submitted fields; stale revisions
+  cannot be silently rebased. Bare Studio
   redirects verified creators to the dashboard. Creator workflow analytics tags
   are omitted to avoid sending private draft identifiers to analytics services.
 - Sessions are file-backed using PHP's configured private storage. Multiple web
@@ -227,14 +233,17 @@ separate rollback-only test of the initial four-table foundation.
 
 The same disposable suite now also checks actual exhibition draft round trips,
 trusted owner/draft state, zero placeholder children, listing order/chapter counts,
-CSRF and validation errors, owner-only dashboard/Studio requests, read-only method
-restrictions, refresh/reopen, and reopening after a new sign-in. These scenarios
+CSRF and validation errors, owner-only dashboard/Studio requests, method
+restrictions, refresh/reopen, and reopening after a new sign-in. Metadata tests
+also cover persisted updates, stale/foreign/published save rejection, retained input
+on validation/CSRF/database failures, and updated dashboard values. These scenarios
 passed in the separately approved isolated PostgreSQL 18.6 run, alongside eight
 authentication service groups and 23 database-backed authentication HTTP scenarios.
 The disposable schema and cluster were removed after validation. A separately
 approved single-private-draft browser test confirmed persistence and read-only
 Studio behavior at desktop and mobile widths.
-Future runs still require explicit disposable database/migration approval:
+Future runs still require explicit disposable database/migration approval
+(the metadata milestone authorizes this isolated testing only):
 the test setup installs both existing migrations, never production migrations.
 
 `tests/http.ps1 -BaseUrl ...` remains the separate loopback **Apache** private-file
