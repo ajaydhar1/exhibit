@@ -21,8 +21,8 @@ DLLs or disable verified database TLS.
 | Variable | Meaning |
 | --- | --- |
 | `DATABASE_URL` | Existing PostgreSQL connection URL; never place credentials in source or command arguments. |
-| `DB_SSLMODE` | `verify-full` for remote PostgreSQL; `disable` allowed only for loopback development. |
-| `DB_SSLROOTCERT` | Readable trusted CA bundle for database hostname verification; existing Docker default is retained. |
+| `DB_SSLMODE` | `require` for Render (TLS encryption without requiring server certificate/hostname validation); `verify-full` where full certificate and hostname verification is supported; `disable` allowed only for loopback development. |
+| `DB_SSLROOTCERT` | Readable trusted CA bundle required for `verify-full`; existing Docker default is retained. |
 | `APP_URL` | Canonical externally visible HTTPS application URL, including the subdirectory if present, without query or fragment. HTTP is accepted only on loopback. This controls links, redirects, cookie path, and Secure cookies; never infer it from request headers. |
 | `AUTH_KEY` | 32 cryptographically random bytes encoded as 64 hexadecimal characters, stored as an environment secret. Used for AES-256-GCM queue encryption and HMAC rate-limit identities. Keep stable across web instances and workers. |
 

@@ -198,16 +198,18 @@ path. Future SQL must use bound parameters for values and allowlisted identifier
 | Variable | Purpose |
 | --- | --- |
 | `DATABASE_URL` | `postgresql://USER:URL_ENCODED_PASSWORD@HOST:5432/DATABASE` (also accepts `postgres://`). Required only when connecting. |
-| `DB_SSLMODE` | Defaults to `verify-full`: encrypts and validates both CA trust and hostname. Only alternative is explicitly `disable` for `localhost`, `127.0.0.1`, or `::1`. |
-| `DB_SSLROOTCERT` | Readable trusted PEM CA bundle path required with `verify-full`. The Docker image sets the Debian system bundle path. Use a trusted absolute Windows path for local PHP. |
+| `DB_SSLMODE` | Defaults to `verify-full`, which encrypts and requires CA-trust and hostname validation. `require` forces encryption but does not enforce certificate or hostname validation; use it for Render as confirmed by provider support. `disable` is allowed only for `localhost`, `127.0.0.1`, or `::1`. |
+| `DB_SSLROOTCERT` | Readable trusted PEM CA bundle path required with `verify-full`. The Docker image sets the Debian system bundle path. Use a trusted absolute Windows path for local PHP. It is not used by `require`. |
 | `APP_ENV` | Optional existing-production-compatible profile: `development` allows only `127.0.0.1:55432/exhibit_development`; `test` allows only loopback `exhibit_test_SUFFIX`; `production` retains existing connection/TLS rules. Unknown profiles are rejected. |
 
-Use Render's exact database hostname, not an IP address or invented alias. If
-hostname verification fails, stop and check the provider's certificate/hostname
-instructions; do not weaken TLS to `require`, `prefer`, or disable verification.
-The helper deliberately rejects URL query strings/fragments so connection policy
-cannot be overridden inside a URL. If Render supplies URL parameters, review them
-and translate only supported settings into the separate variables above. Percent-
+For Render, set `DB_SSLMODE=require` as confirmed by provider support. This still
+requires TLS encryption, but unlike `verify-full` it does not require validation
+of the server certificate or hostname. Keep `verify-full` where certificate and hostname
+verification is supported and required by the deployment's policy; `prefer` is
+not accepted, and `disable` remains loopback-only. The helper deliberately rejects
+URL query strings/fragments so connection policy cannot be overridden inside a URL.
+If Render supplies URL parameters, review them and translate only supported settings
+into the separate variables above. Percent-
 encode username/password components, especially `@`, `:`, `/`, `?`, `#`, `%`, and
 spaces. Database names are limited to letters, digits, underscore, hyphen, and dot.
 
@@ -271,7 +273,10 @@ the URL/database locally, resolves the external hostname, probes TCP without
 credentials, and then uses the same PDO helper by **hostname** for verified TLS
 and authentication. Database queries run in a read-only transaction. It prints
 no URL, host, IP address, username, password, or driver message. Network probes
-and connection attempts may create normal infrastructure logs.
+and connection attempts may create normal infrastructure logs. This diagnostic
+intentionally rejects Render's application `require` mode; the authentication
+preflight wrapper supports `require` and confirms active TLS in its read-only
+report.
 
 The helper examines both `PDOException::getMessage()` and `errorInfo[2]` locally,
 plus a whitelist of SQLSTATE values from `errorInfo[0]`, the exception code, or
@@ -298,7 +303,7 @@ Categories are diagnostic hints rather than conclusive root-cause detection:
 | Configuration rejection | Re-enter the exact external URL using hidden input. Do not double-encode credentials or use the PSQL shell command as a URL. Query strings are intentionally rejected. |
 | DNS | Confirm External URL selection, full hostname, and local DNS/VPN behavior. Never replace the hostname with a resolved IP. |
 | NETWORK | Confirm the database is available, the current VPN/NAT egress IP matches Render's saved allowlist, and outbound TCP 5432 is allowed. An IPv4 allowlist entry does not establish that all possible connection routes work. Do not open access to the entire internet as a test. |
-| TLS | Keep `verify-full`. Confirm the exact external hostname, system date/time, a current trusted Mozilla CA bundle, and that the CA file contains certificates rather than HTML. Use only a trusted CA source. Never trust a captured server leaf certificate as a workaround or disable verification. |
+| TLS | The strict TLS diagnostic requires `verify-full`; confirm the exact external hostname, system date/time, a current trusted Mozilla CA bundle, and that the CA file contains certificates rather than HTML. For Render's application connection use the provider-supported `require` mode, which still requires TLS but does not require certificate or hostname verification. Never trust a captured server leaf certificate as a workaround or use `disable` remotely. |
 | AUTHENTICATION | Re-copy the current external URL through hidden input; check whether the credential was rotated. Preserve the supplied URL encoding exactly. Do not log credentials or rotate them merely to test a guess. |
 | ACCESS_POLICY | Review saved Render access rules and provider-side connection policy; this is distinct from a local DNS failure. |
 | DATABASE | Independently verify the exact database name and selected role's CONNECT permission. Stop on identity uncertainty. |
@@ -452,21 +457,21 @@ single modern libpq DLL into Ampps.
 1. In the private Render dashboard, confirm the intended database, region,
    environment, PostgreSQL version, and backup/recovery options. Do not copy secrets
    into this repository.
-2. Use Render's **full external hostname** for this helper's `verify-full`
-   configuration. Render documents that internal TLS uses self-signed certificates
-   and does not support `verify-ca`/`verify-full`; recommending the internal URL
-   with the system CA bundle would be incompatible. This milestone deliberately
-   does not add an unverified `require` mode or plaintext remote fallback.
+2. Use Render's **full external hostname** and the provider-supported
+   `DB_SSLMODE=require` mode for Render connections. This requires encryption but
+   does not enforce validation of the server certificate or hostname. The stricter
+   `verify-full` diagnostics remain available only when the endpoint's certificate
+   chain and hostname can be verified with a trusted CA bundle.
    Restrict external database access to authorized administrator IPs and, when
    integration is approved, the web service's documented outbound IP ranges.
-   Do not open access to all addresses. Confirm the certificate chain and
-   hostname in an approved connection check before integration; no handshake
-   with the existing Render database has been performed.
+   Do not open access to all addresses. If using the stricter `verify-full`
+   diagnostic, confirm the certificate chain and hostname in an approved
+   connection check; no handshake with the existing Render database has been
+   performed.
 3. In the web service's Render **Environment** settings, add `DATABASE_URL` as a
-   secret value. Set `DB_SSLMODE=verify-full`. The Docker image supplies
-   `DB_SSLROOTCERT=/etc/ssl/certs/ca-certificates.crt` and installs `pdo_pgsql`.
-   If the external endpoint requires a different CA, provision its trusted certificate as a
-   private file and set that path; never acquire certificates from untrusted sources.
+   secret value. Set `DB_SSLMODE=require`. The Docker image installs `pdo_pgsql`.
+   `DB_SSLROOTCERT=/etc/ssl/certs/ca-certificates.crt` remains available for
+   `verify-full` connections; never acquire certificates from untrusted sources.
 4. Separate the migration/schema-owner role from the eventual runtime role.
    The runtime role should have only CONNECT, schema USAGE, necessary table DML,
    and identity-sequence privileges, not DDL, role creation, or superuser rights.
@@ -645,7 +650,7 @@ describe the approval-gated procedure; they are not pending actions on Render.
 3. Obtain explicit approval to contact Render. Confirm the exact target name,
    migration role, certificate trust, external-access allowlist, and a restorable
    backup (or confirmed empty database). Use the hidden-input environment setup
-   above with Render's **external** URL, `verify-full`, and a trusted CA bundle.
+   above with Render's **external** URL and `DB_SSLMODE=require`.
 4. Only after connection approval, run the read-only target preflight:
 
    ```powershell

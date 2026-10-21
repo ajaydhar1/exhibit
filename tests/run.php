@@ -65,6 +65,14 @@ $tests['TLS defaults to verified hostname and readable CA'] = static function ()
     rejects(array_replace($base, ['DB_SSLMODE' => 'verify-full', 'DB_SSLROOTCERT' => __DIR__]));
     rejects(array_replace($base, ['DB_SSLMODE' => 'verify-full', 'DB_SSLROOTCERT' => __FILE__ . ';sslmode=disable']));
 };
+$tests['TLS require mode is passed explicitly without verify-full CA validation'] = static function (): void {
+    $config = configuration([
+        'DATABASE_URL' => 'postgresql://user:password@db.example.test/exhibit',
+        'DB_SSLMODE' => 'require',
+    ]);
+    check(str_contains($config['dsn'], 'sslmode=require;'), 'Configured require mode was not passed to PDO.');
+    check(!str_contains($config['dsn'], 'sslrootcert='), 'require mode must not claim verify-full CA validation.');
+};
 
 $invalidUrls = [
     '', 'mysql://user:secret-sentinel@localhost/db',
@@ -86,12 +94,16 @@ $invalidUrls = [
 foreach ($invalidUrls as $index => $url) {
     $tests['Reject invalid URL #' . ($index + 1)] = static fn () => rejects(array_replace($base, ['DATABASE_URL' => $url]));
 }
-$tests['Reject missing environment and insecure remote TLS'] = static function () use ($base): void {
+$tests['Reject missing environment, invalid modes, and remote TLS disable'] = static function () use ($base): void {
     rejects([]);
     rejects(array_replace($base, ['DATABASE_URL' => 'postgresql://user:secret-sentinel@db.example.test/db']));
-    foreach (['require', 'prefer', 'verify-ca', 'invalid'] as $mode) {
+    foreach (['prefer', 'verify-ca', 'invalid'] as $mode) {
         rejects(array_replace($base, ['DB_SSLMODE' => $mode]));
     }
+    rejects([
+        'DATABASE_URL' => 'postgresql://user:password@db.example.test/exhibit',
+        'DB_SSLMODE' => 'disable',
+    ]);
 };
 $tests['Development profile rejects production, test and alternate local database targets before connecting'] = static function (): void {
     $local = ['APP_ENV' => 'development', 'DB_SSLMODE' => 'disable',

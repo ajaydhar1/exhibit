@@ -59,8 +59,8 @@ backup.
 | `APP_URL` | `https://exhibit.world` on the web app. This existing setting controls emailed verification/reset links, canonical redirects and secure cookies. No production URL is hardcoded as a development default. |
 | `AUTH_KEY` | The same existing stable 64-hex-character secret on web and worker; do not rotate it when enabling Resend. It decrypts pending emails and keys rate limits. |
 | `DATABASE_URL` | The existing initialized Exhibit PostgreSQL URL, supplied privately to web/worker. Do not create a second auth database or use a disposable test URL. |
-| `DB_SSLMODE` | `verify-full`. |
-| `DB_SSLROOTCERT` | Trusted CA bundle readable by the worker; existing Docker default is `/etc/ssl/certs/ca-certificates.crt`. |
+| `DB_SSLMODE` | `require` (Render-supported TLS encryption; it does not require server certificate or hostname verification). |
+| `DB_SSLROOTCERT` | Used only with `verify-full`; the existing Docker default is `/etc/ssl/certs/ca-certificates.crt`. |
 
 The worker needs PHP 8.2+, PDO PostgreSQL, OpenSSL, `allow_url_fopen=On`, and a
 current system HTTPS CA store. PHP's HTTPS streams use the system trust store or

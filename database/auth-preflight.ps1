@@ -1,7 +1,6 @@
 param(
     [Parameter(Mandatory = $true)]
     [string] $Database,
-    [Parameter(Mandatory = $true)]
     [string] $CaBundle,
     [string] $PhpHome = (Join-Path $env:LOCALAPPDATA 'Exhibit\runtimes\php-8.4.26-nts-x64'),
     [switch] $ApplyApprovedMigration,
@@ -11,9 +10,8 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $php = Join-Path $PhpHome 'php.exe'
-if (-not (Test-Path -LiteralPath $php -PathType Leaf) -or
-    -not (Test-Path -LiteralPath $CaBundle -PathType Leaf)) {
-    throw 'The isolated PHP executable and trusted CA bundle must exist.'
+if (-not (Test-Path -LiteralPath $php -PathType Leaf)) {
+    throw 'The isolated PHP executable must exist.'
 }
 if ($Database -notmatch '^[a-zA-Z0-9_.-]+$') {
     throw 'Use the exact database name shown in the Render dashboard.'
@@ -48,8 +46,21 @@ try {
         $pointer = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secure)
         $env:DATABASE_URL = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($pointer)
     }
-    $env:DB_SSLMODE = 'verify-full'
-    $env:DB_SSLROOTCERT = (Resolve-Path -LiteralPath $CaBundle).Path
+    $sslMode = $env:DB_SSLMODE
+    if ([string]::IsNullOrEmpty($sslMode)) {
+        $sslMode = 'verify-full'
+    }
+    if ($sslMode -notin @('require', 'verify-full')) {
+        throw 'DB_SSLMODE must be require or verify-full for the remote preflight.'
+    }
+    $env:DB_SSLMODE = $sslMode
+    if ($sslMode -eq 'verify-full') {
+        if ([string]::IsNullOrEmpty($CaBundle) -or
+            -not (Test-Path -LiteralPath $CaBundle -PathType Leaf)) {
+            throw 'A readable trusted CA bundle is required for verify-full.'
+        }
+        $env:DB_SSLROOTCERT = (Resolve-Path -LiteralPath $CaBundle).Path
+    }
     $phpArguments = @('-n', '-d', "extension_dir=$PhpHome\ext", '-d', 'extension=pdo_pgsql', '-d', 'zend.exception_ignore_args=1')
     $runner = Join-Path $PSScriptRoot 'auth-migrate.php'
     $preflightOutput = & $php @phpArguments $runner --check "--database=$Database"
@@ -65,7 +76,7 @@ try {
         if ($preflight.operation -ne 'preflight' -or $preflight.database -cne $Database -or
             $preflight.endpoint_sha256 -cne $ExpectedEndpointSha256 -or
             $preflight.migration_sha256 -cne $ApprovedSha256 -or
-            $preflight.read_only -ne $true -or $preflight.tls_mode -ne 'verify-full' -or
+            $preflight.read_only -ne $true -or $preflight.tls_mode -ne $sslMode -or
             $preflight.tls_active -ne $true) {
             throw 'Fresh preflight does not match the approved target/checksum/TLS policy. Nothing applied.'
         }
@@ -84,7 +95,7 @@ try {
         if ($verification.operation -ne 'verification' -or $verification.database -cne $Database -or
             $verification.endpoint_sha256 -cne $ExpectedEndpointSha256 -or
             $verification.migration_sha256 -cne $ApprovedSha256 -or $verification.read_only -ne $true -or
-            $verification.tls_mode -ne 'verify-full' -or $verification.tls_active -ne $true -or
+            $verification.tls_mode -ne $sslMode -or $verification.tls_active -ne $true -or
             $verification.schema -ne 'authentication verified') {
             throw 'Post-commit report does not match the approved target and verified schema. Do not rerun apply.'
         }

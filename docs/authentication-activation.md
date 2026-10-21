@@ -44,21 +44,25 @@ operator-assisted production evidence is recorded below.
 
 ## 1. Read-only Render preflight (credential assistance needed)
 
-Use the previously validated isolated PHP runtime and the same trusted CA bundle
-from the completed database diagnostic. Do not modify shared Ampps PHP or DLLs.
-Use Render's existing **external** PostgreSQL URL without modifying its encoding.
+Use the previously validated isolated PHP runtime. Do not modify shared Ampps PHP
+or DLLs. Use Render's existing **external** PostgreSQL URL without modifying its
+encoding.
 
 In a private PowerShell terminal in the repository:
 
 ```powershell
 $DatabaseName = Read-Host 'Exact existing database name from Render'
-$CaBundle = Read-Host 'Absolute path to the trusted CA bundle already used successfully'
-.\database\auth-preflight.ps1 -Database $DatabaseName -CaBundle $CaBundle
+.\database\auth-preflight.ps1 -Database $DatabaseName
 ```
 
 The wrapper uses an already-set process `DATABASE_URL` or prompts for it with
-hidden input. It temporarily enforces `verify-full`, then restores the previous
-environment and clears its secure input buffer. No credential file is written.
+hidden input. It preserves an explicit `DB_SSLMODE=require` or `verify-full`;
+when unset, it defaults to `verify-full`. `verify-full` requires the supplied
+trusted CA bundle, while `require` confirms encryption without requiring
+certificate or hostname validation. Supply `-CaBundle` with a trusted PEM path
+when using `verify-full`; it is not needed for Render's `require` mode. The
+wrapper restores the previous environment and clears its secure input buffer. No
+credential file is written.
 Do not use PowerShell tracing, transcripts, screen sharing of secrets, or shell
 commands that print environment values. The URL exists in process memory and is
 inherited by PHP; local administrators/process-inspection tools can access it.
@@ -80,8 +84,9 @@ Preflight checks:
 
 1. Validate connection configuration and URL database name before connecting.
 2. Open a `REPEATABLE READ READ ONLY` transaction; confirm read-only mode.
-3. Confirm the connected database name exactly, writable-primary state, and TLS.
-   Remote connections require verified hostname/CA TLS, never disabled TLS.
+3. Confirm the connected database name exactly, writable-primary state, and active
+   TLS. The wrapper accepts Render's `require` mode or stricter `verify-full`;
+   remote TLS cannot be disabled.
 4. Confirm database CONNECT, public-schema USAGE/CREATE, users REFERENCES, and
    effective ownership of users (required for ALTER, not satisfied by DML grants).
 5. Validate foundation columns/types/nullability/defaults, identities, primary

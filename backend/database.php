@@ -70,10 +70,10 @@ function configuration(array $environment): array
     if ($sslMode === false || $sslMode === '') {
         $sslMode = 'verify-full';
     }
-    if (!in_array($sslMode, ['verify-full', 'disable'], true)
+    if (!in_array($sslMode, ['verify-full', 'require', 'disable'], true)
         || ($sslMode === 'disable' && !in_array($host, ['localhost', '127.0.0.1', '::1'], true))
     ) {
-        throw new InvalidArgumentException('DB_SSLMODE must be verify-full; disable is allowed only for loopback development.');
+        throw new InvalidArgumentException('DB_SSLMODE must be verify-full or require; disable is allowed only for loopback development.');
     }
 
     $dsn = "pgsql:host={$host};port={$port};dbname={$database};sslmode={$sslMode};connect_timeout=5";
